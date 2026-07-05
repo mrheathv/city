@@ -71,3 +71,59 @@ describe('facility placement', () => {
     expect(applyTool(map, 'facility_power_coal', 4, 4, funds).changed).toBe(true);
   });
 });
+
+describe('bridges', () => {
+  function makeWaterMap(size = 20): CityMap {
+    const map = new CityMap(size, size);
+    map.terrain.fill(Terrain.Water);
+    return map;
+  }
+
+  it('allows a road to span open water, at a premium over normal cost', () => {
+    const map = makeWaterMap();
+    const funds = 100000;
+    const i = map.idx(5, 5);
+
+    const result = applyTool(map, 'road', 5, 5, funds);
+
+    expect(result.changed).toBe(true);
+    expect(result.cost).toBeGreaterThan(10); // more than plain road cost
+    expect(map.networks[i] & NetworkFlag.Road).toBe(NetworkFlag.Road);
+    expect(map.terrain[i]).toBe(Terrain.Water); // still water underneath
+  });
+
+  it('allows rail to span open water too', () => {
+    const map = makeWaterMap();
+    const funds = 100000;
+    const result = applyTool(map, 'rail', 5, 5, funds);
+    expect(result.changed).toBe(true);
+    expect(map.networks[map.idx(5, 5)] & NetworkFlag.Rail).toBe(NetworkFlag.Rail);
+  });
+
+  it('refuses power lines/water pipes on open water with no bridge deck', () => {
+    const map = makeWaterMap();
+    const funds = 100000;
+    expect(applyTool(map, 'powerline', 5, 5, funds).changed).toBe(false);
+    expect(applyTool(map, 'waterpipe', 5, 5, funds).changed).toBe(false);
+  });
+
+  it('allows power lines/water pipes to piggyback once a bridge deck exists, at normal cost', () => {
+    const map = makeWaterMap();
+    const funds = 100000;
+    applyTool(map, 'road', 5, 5, funds);
+
+    const result = applyTool(map, 'powerline', 5, 5, funds);
+
+    expect(result.changed).toBe(true);
+    expect(result.cost).toBe(5); // normal powerline cost, not a bridge premium
+    expect(map.networks[map.idx(5, 5)] & NetworkFlag.PowerLine).toBe(NetworkFlag.PowerLine);
+  });
+
+  it('still refuses zoning on a bridge tile', () => {
+    const map = makeWaterMap();
+    const funds = 100000;
+    applyTool(map, 'road', 5, 5, funds);
+    const result = applyTool(map, 'zone_res_low', 5, 5, funds);
+    expect(result.changed).toBe(false);
+  });
+});

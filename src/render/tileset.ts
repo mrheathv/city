@@ -73,20 +73,27 @@ export class PlaceholderTileset implements Tileset {
   drawTile(ctx: CanvasRenderingContext2D, map: CityMap, x: number, y: number, sx: number, sy: number, size: number) {
     const i = map.idx(x, y);
     const terrain = map.terrain[i];
+    const net = map.networks[i];
+    const isBridge = terrain === Terrain.Water && (net & (NetworkFlag.Road | NetworkFlag.Rail)) !== 0;
 
-    if (terrain === Terrain.Water) {
+    if (terrain === Terrain.Water && !isBridge) {
       this.drawWater(ctx, x, y, sx, sy, size);
       return;
     }
 
-    this.drawLand(ctx, map, x, y, i, sx, sy, size);
+    if (isBridge) {
+      // Water underneath, so the bridge still visibly spans it, plus a deck.
+      this.drawWater(ctx, x, y, sx, sy, size);
+      this.drawBridgeDeck(ctx, map, x, y, sx, sy, size);
+    } else {
+      this.drawLand(ctx, map, x, y, i, sx, sy, size);
 
-    const zone = map.zone[i] as ZoneType;
-    if (zone !== ZoneType.None) {
-      this.drawZone(ctx, map, x, y, i, sx, sy, size, zone);
+      const zone = map.zone[i] as ZoneType;
+      if (zone !== ZoneType.None) {
+        this.drawZone(ctx, map, x, y, i, sx, sy, size, zone);
+      }
     }
 
-    const net = map.networks[i];
     if (net & NetworkFlag.Rail) this.drawRail(ctx, map, x, y, sx, sy, size);
     if (net & NetworkFlag.Road) this.drawRoad(ctx, map, x, y, sx, sy, size);
     if (net & NetworkFlag.PowerLine) this.drawPowerLine(ctx, map, x, y, sx, sy, size);
@@ -204,6 +211,49 @@ export class PlaceholderTileset implements Tileset {
     ctx.moveTo(sx, sy + size * 0.4 + wobble);
     ctx.quadraticCurveTo(sx + size * 0.5, sy + size * 0.3, sx + size, sy + size * 0.4 + wobble);
     ctx.stroke();
+  }
+
+  private drawBridgeDeck(ctx: CanvasRenderingContext2D, map: CityMap, x: number, y: number, sx: number, sy: number, size: number) {
+    const deckFlag = NetworkFlag.Road | NetworkFlag.Rail;
+    const has = (nx: number, ny: number) => map.inBounds(nx, ny) && (map.networks[map.idx(nx, ny)] & deckFlag) !== 0;
+    const horiz = has(x - 1, y) || has(x + 1, y);
+    const vert = has(x, y - 1) || has(x, y + 1);
+    const isVertical = vert && !horiz;
+
+    ctx.fillStyle = '#6b5c45';
+    ctx.fillRect(sx, sy, size, size);
+
+    // Railings along the two edges parallel to the direction of travel.
+    ctx.strokeStyle = '#463a29';
+    ctx.lineWidth = Math.max(1, size * 0.06);
+    ctx.beginPath();
+    if (isVertical) {
+      ctx.moveTo(sx + size * 0.08, sy);
+      ctx.lineTo(sx + size * 0.08, sy + size);
+      ctx.moveTo(sx + size * 0.92, sy);
+      ctx.lineTo(sx + size * 0.92, sy + size);
+    } else {
+      ctx.moveTo(sx, sy + size * 0.08);
+      ctx.lineTo(sx + size, sy + size * 0.08);
+      ctx.moveTo(sx, sy + size * 0.92);
+      ctx.lineTo(sx + size, sy + size * 0.92);
+    }
+    ctx.stroke();
+
+    // Plank seams perpendicular to the direction of travel.
+    ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+    ctx.lineWidth = Math.max(1, size * 0.03);
+    for (let t = 0.2; t < 1; t += 0.3) {
+      ctx.beginPath();
+      if (isVertical) {
+        ctx.moveTo(sx + size * 0.12, sy + size * t);
+        ctx.lineTo(sx + size * 0.88, sy + size * t);
+      } else {
+        ctx.moveTo(sx + size * t, sy + size * 0.12);
+        ctx.lineTo(sx + size * t, sy + size * 0.88);
+      }
+      ctx.stroke();
+    }
   }
 
   private drawLand(

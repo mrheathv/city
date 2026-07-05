@@ -15,6 +15,9 @@ const NETWORK_COST: Record<string, number> = {
   waterpipe: 5,
 };
 
+// Bridges are expensive engineering, same as in the original game.
+const BRIDGE_COST_MULTIPLIER = 4;
+
 const ZONE_COST = 5;
 
 const FACILITY_TOOL_TYPE: Record<string, FacilityType> = {
@@ -106,7 +109,16 @@ export function applyTool(map: CityMap, tool: ToolId, x: number, y: number, fund
   }
 
   if (tool === 'road' || tool === 'rail' || tool === 'powerline' || tool === 'waterpipe') {
-    if (map.terrain[i] === Terrain.Water) return { changed: false, cost: 0, reason: 'water' };
+    const isWater = map.terrain[i] === Terrain.Water;
+    const isBridgeDeckTool = tool === 'road' || tool === 'rail';
+    const hasBridgeDeck = (map.networks[i] & (NetworkFlag.Road | NetworkFlag.Rail)) !== 0;
+
+    // Road/rail can span open water (building the bridge deck itself).
+    // Power lines/pipes can only cross water by piggybacking on a deck
+    // that's already there — they can't float on open water alone.
+    if (isWater && !isBridgeDeckTool && !hasBridgeDeck) {
+      return { changed: false, cost: 0, reason: 'water' };
+    }
     if (map.facilityId[i] !== 0) return { changed: false, cost: 0, reason: 'occupied' };
     const flag =
       tool === 'road'
@@ -117,7 +129,8 @@ export function applyTool(map: CityMap, tool: ToolId, x: number, y: number, fund
             ? NetworkFlag.PowerLine
             : NetworkFlag.WaterPipe;
     if (map.networks[i] & flag) return { changed: false, cost: 0 };
-    const cost = NETWORK_COST[tool];
+    const baseCost = NETWORK_COST[tool];
+    const cost = isWater && isBridgeDeckTool ? baseCost * BRIDGE_COST_MULTIPLIER : baseCost;
     if (funds < cost) return { changed: false, cost: 0, reason: 'funds' };
     map.networks[i] |= flag;
     return { changed: true, cost };

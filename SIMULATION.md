@@ -37,6 +37,21 @@ falloff subtracted from elevation biases coastline/lake formation away from
 the exact map center, keeping a buildable core. Forest placement is a third
 noise field, thresholded by `forestDensity`.
 
+### Bridges (`src/sim/tools.ts`)
+
+Road and rail can be placed directly on water tiles — this builds a bridge
+deck rather than being blocked, at a cost multiplier (`BRIDGE_COST_MULTIPLIER`,
+4x the normal per-tile cost) reflecting real bridge engineering costs. Power
+lines and water pipes cannot be placed on open water on their own, but can
+piggyback on a tile that already has a road or rail deck, at normal cost — a
+bridge carries whatever utilities are run across it, it just can't be the
+first thing built there. Zoning still refuses water/bridge tiles outright: a
+bridge is infrastructure, not developable land. A bridge tile's `terrain`
+value never changes (still `Water`), so it's excluded from land value the
+same as any other water tile, and it participates in the road network,
+traffic routing, and power/water conductivity exactly like a land tile with
+the same network flags — no special-casing needed in those systems.
+
 ## Utility networks: power & water (`src/sim/power.ts`, `water.ts`, `utility.ts`)
 
 Power lines and water pipes are separate bitmask flags per tile
