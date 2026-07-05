@@ -66,6 +66,7 @@ export function GameCanvas() {
         hoverTile: hoverRef.current,
         selectedTile: state.selectedTile,
         underground: state.undergroundView,
+        trafficView: state.trafficView,
         footprintPreview,
         rejectedFootprint: rejectFlashRef.current,
       });

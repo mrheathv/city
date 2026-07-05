@@ -1,5 +1,6 @@
 import { useGameStore } from '../state/store';
 import { formatMoney, formatNumber, formatSimDate } from '../utils/format';
+import { RCIMeter } from './RCIMeter';
 
 export function TopBar({ onMenu }: { onMenu: () => void }) {
   const funds = useGameStore((s) => s.funds);
@@ -30,7 +31,9 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
         <span className="text-xs text-white/60">pop.</span>
       </div>
 
-      <div className="flex-1" />
+      <div className="flex-1 flex justify-center min-w-0">
+        <RCIMeter />
+      </div>
 
       <div className="flex items-center gap-1 shrink-0">
         <button

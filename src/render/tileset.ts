@@ -1,6 +1,8 @@
 import { CityMap } from '../sim/grid';
-import { NetworkFlag, Terrain, ZoneType, zoneCategory } from '../sim/types';
+import { NetworkFlag, Terrain, ZoneType, zoneCategory, type Facility } from '../sim/types';
 import { FACILITY_DEFS } from '../sim/facilities';
+
+export type ViewMode = 'surface' | 'underground' | 'traffic';
 
 /**
  * Procedural placeholder pixel-art tileset. Every draw call is keyed by the
@@ -14,6 +16,41 @@ export interface Tileset {
   drawTile(ctx: CanvasRenderingContext2D, map: CityMap, x: number, y: number, sx: number, sy: number, size: number): void;
   /** Underground layer: dims the surface and highlights the water pipe network, since pipes have no surface presence. */
   drawUndergroundTile(ctx: CanvasRenderingContext2D, map: CityMap, x: number, y: number, sx: number, sy: number, size: number): void;
+  /** Traffic layer: dims the surface and colors every road tile by its congestion level (green→yellow→red). */
+  drawTrafficTile(ctx: CanvasRenderingContext2D, map: CityMap, x: number, y: number, sx: number, sy: number, size: number): void;
+  /**
+   * Draws one facility at its own world position, sized to its full NxN
+   * footprint. Called once per facility in a dedicated pass *after* the base
+   * tile grid is fully drawn — drawing a multi-tile building inline in
+   * per-tile draw calls doesn't work, because tiles iterated after the
+   * facility's origin tile (to its right/below) paint their own background
+   * back over the parts of the building that overflowed into their cell.
+   */
+  drawFacilityOverlay(
+    ctx: CanvasRenderingContext2D,
+    facility: Facility,
+    sx: number,
+    sy: number,
+    size: number,
+    view: ViewMode,
+  ): void;
+}
+
+/** Green (clear) -> yellow (busy) -> red (gridlocked), across the full 0-255 congestion range. */
+function congestionColor(traffic: number): string {
+  const t = Math.max(0, Math.min(255, traffic)) / 255;
+  if (t < 0.5) {
+    const k = t / 0.5;
+    const r = Math.round(74 + k * (250 - 74));
+    const g = Math.round(222 + k * (204 - 222));
+    const b = Math.round(128 + k * (21 - 128));
+    return `rgb(${r},${g},${b})`;
+  }
+  const k = (t - 0.5) / 0.5;
+  const r = Math.round(250 + k * (220 - 250));
+  const g = Math.round(204 + k * (38 - 204));
+  const b = Math.round(21 + k * (38 - 21));
+  return `rgb(${r},${g},${b})`;
 }
 
 const ZONE_COLORS: Record<number, { base: string; dev: string }> = {
@@ -54,13 +91,6 @@ export class PlaceholderTileset implements Tileset {
     if (net & NetworkFlag.Road) this.drawRoad(ctx, map, x, y, sx, sy, size);
     if (net & NetworkFlag.PowerLine) this.drawPowerLine(ctx, map, x, y, sx, sy, size);
 
-    if (map.facilityId[i] > 0) {
-      const facility = map.facilities.get(map.facilityId[i]);
-      if (facility && facility.x === x && facility.y === y) {
-        this.drawFacility(ctx, facility.type, sx, sy, size, FACILITY_DEFS[facility.type].size);
-      }
-    }
-
     if (map.disaster[i] === 1) this.drawFire(ctx, x, y, sx, sy, size);
   }
 
@@ -82,20 +112,28 @@ export class PlaceholderTileset implements Tileset {
     if (map.networks[i] & NetworkFlag.WaterPipe) {
       this.drawPipe(ctx, map, x, y, sx, sy, size);
     }
+  }
 
-    if (map.facilityId[i] > 0) {
-      const facility = map.facilities.get(map.facilityId[i]);
-      if (facility && facility.x === x && facility.y === y) {
-        const def = FACILITY_DEFS[facility.type];
-        const isWaterFacility = facility.type === 'water_pump' || facility.type === 'water_tower';
-        if (isWaterFacility) {
-          this.drawFacility(ctx, facility.type, sx, sy, size, def.size);
-        } else {
-          // Non-water facilities still occupy space underground; show a dim placeholder.
-          ctx.fillStyle = 'rgba(255,255,255,0.06)';
-          ctx.fillRect(sx + 2, sy + 2, size * def.size - 4, size * def.size - 4);
-        }
-      }
+  drawTrafficTile(ctx: CanvasRenderingContext2D, map: CityMap, x: number, y: number, sx: number, sy: number, size: number) {
+    const i = map.idx(x, y);
+    const isWater = map.terrain[i] === Terrain.Water;
+
+    ctx.fillStyle = isWater ? '#10161d' : '#1a1d1a';
+    ctx.fillRect(sx, sy, size, size);
+
+    if (map.networks[i] & NetworkFlag.Road) {
+      const mask = this.roadNeighborMask(map, x, y);
+      const color = congestionColor(map.traffic[i]);
+      const cx = sx + size / 2;
+      const cy = sy + size / 2;
+      const half = size * 0.34;
+
+      ctx.fillStyle = color;
+      ctx.fillRect(cx - half, cy - half, half * 2, half * 2);
+      if (mask & 1 || mask === 0) ctx.fillRect(cx - half, sy, half * 2, cy - sy);
+      if (mask & 2 || mask === 0) ctx.fillRect(cx, cy - half, sx + size - cx, half * 2);
+      if (mask & 4 || mask === 0) ctx.fillRect(cx - half, cy, half * 2, sy + size - cy);
+      if (mask & 8 || mask === 0) ctx.fillRect(sx, cy - half, cx - sx, half * 2);
     }
   }
 
@@ -404,5 +442,29 @@ export class PlaceholderTileset implements Tileset {
       park: '🌳',
     };
     ctx.fillText(icons[type] ?? '?', sx + w / 2, sy + h / 2);
+  }
+
+  drawFacilityOverlay(
+    ctx: CanvasRenderingContext2D,
+    facility: Facility,
+    sx: number,
+    sy: number,
+    size: number,
+    view: ViewMode,
+  ) {
+    const def = FACILITY_DEFS[facility.type];
+    const isWaterFacility = facility.type === 'water_pump' || facility.type === 'water_tower';
+
+    if (view === 'surface' || (view === 'underground' && isWaterFacility)) {
+      this.drawFacility(ctx, facility.type, sx, sy, size, def.size);
+      return;
+    }
+
+    // Underground (non-water facility) and traffic views: the building
+    // still occupies space, but isn't the point of that view — show a dim
+    // placeholder so its footprint reads without competing for attention.
+    const w = size * def.size;
+    ctx.fillStyle = 'rgba(255,255,255,0.07)';
+    ctx.fillRect(sx + 2, sy + 2, w - 4, w - 4);
   }
 }

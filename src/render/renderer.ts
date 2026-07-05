@@ -1,6 +1,7 @@
 import { CityMap } from '../sim/grid';
 import { BASE_TILE_SIZE, type Camera, visibleTileRange, worldToScreen } from './camera';
-import type { Tileset } from './tileset';
+import type { Tileset, ViewMode } from './tileset';
+import { FACILITY_DEFS } from '../sim/facilities';
 
 export interface FootprintOverlay {
   x: number;
@@ -14,6 +15,7 @@ export interface RenderOptions {
   hoverTile?: { x: number; y: number } | null;
   selectedTile?: { x: number; y: number } | null;
   underground?: boolean;
+  trafficView?: boolean;
   /** Ghost outline of a facility's footprint at the hovered tile, green/red by validity. */
   footprintPreview?: FootprintOverlay | null;
   /** Brief red flash over a footprint whose placement was just rejected. */
@@ -41,11 +43,15 @@ export function renderFrame(
   const { minX, minY, maxX, maxY } = visibleTileRange(camera, screenW, screenH, map.width, map.height);
   const size = BASE_TILE_SIZE * camera.zoom;
 
+  const view: ViewMode = opts.underground ? 'underground' : opts.trafficView ? 'traffic' : 'surface';
+
   for (let y = minY; y <= maxY; y++) {
     for (let x = minX; x <= maxX; x++) {
       const screen = worldToScreen(camera, screenW, screenH, x * BASE_TILE_SIZE, y * BASE_TILE_SIZE);
-      if (opts.underground) {
+      if (view === 'underground') {
         tileset.drawUndergroundTile(ctx, map, x, y, screen.x, screen.y, size);
+      } else if (view === 'traffic') {
+        tileset.drawTrafficTile(ctx, map, x, y, screen.x, screen.y, size);
       } else {
         tileset.drawTile(ctx, map, x, y, screen.x, screen.y, size);
       }
@@ -69,6 +75,18 @@ export function renderFrame(
       ctx.lineTo(s.x, screenH);
       ctx.stroke();
     }
+  }
+
+  // Facilities are drawn once each, at their own world position, in a
+  // dedicated pass — see the Tileset.drawFacilityOverlay doc comment for
+  // why this can't happen inline in the per-tile draw calls above.
+  const pad = 4; // footprints can be up to 4 tiles; give some margin before culling
+  for (const facility of map.facilities.values()) {
+    const def = FACILITY_DEFS[facility.type];
+    if (facility.x + def.size < minX - pad || facility.x > maxX + pad) continue;
+    if (facility.y + def.size < minY - pad || facility.y > maxY + pad) continue;
+    const screen = worldToScreen(camera, screenW, screenH, facility.x * BASE_TILE_SIZE, facility.y * BASE_TILE_SIZE);
+    tileset.drawFacilityOverlay(ctx, facility, screen.x, screen.y, size, view);
   }
 
   if (opts.hoverTile && map.inBounds(opts.hoverTile.x, opts.hoverTile.y)) {

@@ -6,6 +6,7 @@ import { TileInfoPanel } from './components/TileInfoPanel';
 import { BudgetPanel } from './components/BudgetPanel';
 import { Onboarding, hasSeenOnboarding } from './components/Onboarding';
 import { UndergroundBanner } from './components/UndergroundBanner';
+import { TrafficBanner } from './components/TrafficBanner';
 
 function App() {
   const [showBudget, setShowBudget] = useState(false);
@@ -16,6 +17,7 @@ function App() {
       <GameCanvas />
       <TopBar onMenu={() => setShowBudget(true)} />
       <UndergroundBanner />
+      <TrafficBanner />
       <TileInfoPanel />
       <BottomToolbar />
       <BudgetPanel open={showBudget} onClose={() => setShowBudget(false)} onShowTutorial={() => setShowOnboarding(true)} />

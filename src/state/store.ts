@@ -9,7 +9,7 @@ import type { SimSpeed } from '../sim/tick';
 import type { DailyBudget } from '../sim/budget';
 import { createBond, amortizeMonthly, dailyDebtService, type Bond } from '../sim/bonds';
 import { saveToLocalStorage, loadFromLocalStorage } from './save';
-import { computeCityTotals } from '../sim/rci';
+import { computeCityTotals, type RCIDemand } from '../sim/rci';
 import { triggerEarthquake, updateFires, type DisasterSettings } from '../sim/disasters';
 import { computeServiceCoverage } from '../sim/services';
 
@@ -36,10 +36,13 @@ export interface GameState {
   nextBondId: number;
   disasters: DisasterSettings;
   undergroundView: boolean;
+  trafficView: boolean;
+  demand: RCIDemand;
 
   setCamera: (cam: Partial<Camera>) => void;
   setTool: (tool: ToolId) => void;
   setUndergroundView: (v: boolean) => void;
+  setTrafficView: (v: boolean) => void;
   setHoverTile: (t: { x: number; y: number } | null) => void;
   paintTile: (x: number, y: number) => ToolResult;
   selectTile: (x: number, y: number) => void;
@@ -79,6 +82,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   nextBondId: 1,
   disasters: { enabled: true },
   undergroundView: false,
+  trafficView: false,
+  demand: { residential: 0, commercial: 0, industrial: 0 },
 
   setCamera: (cam) =>
     set((s) => ({
@@ -96,6 +101,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   setTool: (tool) => set({ tool, undergroundView: tool === 'waterpipe' }),
 
   setUndergroundView: (v) => set({ undergroundView: v }),
+
+  setTrafficView: (v) => set({ trafficView: v, undergroundView: v ? false : get().undergroundView }),
 
   setHoverTile: (t) => set({ hoverTile: t }),
 
@@ -153,6 +160,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       population: result.population,
       jobs: result.jobs,
       lastBudget: result.budget,
+      demand: result.demand,
       bonds,
       mapVersion: s.mapVersion + 1,
       selectedTileInfo: s.selectedTile ? s.map.getTile(s.selectedTile.x, s.selectedTile.y) : null,
@@ -176,6 +184,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       lastBudget: null,
       bonds: [],
       nextBondId: 1,
+      demand: { residential: 0, commercial: 0, industrial: 0 },
     });
   },
 

@@ -63,6 +63,8 @@ const CATEGORIES: Category[] = [
 export function BottomToolbar() {
   const tool = useGameStore((s) => s.tool);
   const setTool = useGameStore((s) => s.setTool);
+  const trafficView = useGameStore((s) => s.trafficView);
+  const setTrafficView = useGameStore((s) => s.setTrafficView);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const activeCategory = CATEGORIES.find((c) => c.tools.some((t) => t.id === tool));
@@ -116,6 +118,16 @@ export function BottomToolbar() {
             </button>
           );
         })}
+        <button
+          onClick={() => setTrafficView(!trafficView)}
+          className={`flex flex-col items-center justify-center flex-1 h-12 mx-0.5 rounded-lg ${
+            trafficView ? 'bg-sky-500/80' : 'bg-white/5'
+          } active:bg-white/20 text-white`}
+          aria-pressed={trafficView}
+        >
+          <span className="text-xl leading-none">🚦</span>
+          <span className="text-[10px] mt-0.5">Traffic</span>
+        </button>
       </div>
     </div>
   );
