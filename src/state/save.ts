@@ -39,6 +39,7 @@ export interface SaveGame {
   bonds: Bond[];
   nextBondId: number;
   camera: Camera;
+  disastersEnabled: boolean;
   savedAt: string;
 }
 
@@ -65,6 +66,7 @@ export interface SaveMeta {
   bonds: Bond[];
   nextBondId: number;
   camera: Camera;
+  disastersEnabled: boolean;
 }
 
 export function serializeCity(map: CityMap, meta: SaveMeta): SaveGame {
@@ -91,6 +93,7 @@ export function serializeCity(map: CityMap, meta: SaveMeta): SaveGame {
     bonds: meta.bonds,
     nextBondId: meta.nextBondId,
     camera: meta.camera,
+    disastersEnabled: meta.disastersEnabled,
     savedAt: new Date().toISOString(),
   };
 }
@@ -119,6 +122,7 @@ export function deserializeCity(save: SaveGame): { map: CityMap; meta: SaveMeta 
       bonds: save.bonds,
       nextBondId: save.nextBondId,
       camera: save.camera,
+      disastersEnabled: save.disastersEnabled ?? true,
     },
   };
 }

@@ -10,6 +10,8 @@ import type { DailyBudget } from '../sim/budget';
 import { createBond, amortizeMonthly, dailyDebtService, type Bond } from '../sim/bonds';
 import { saveToLocalStorage, loadFromLocalStorage } from './save';
 import { computeCityTotals } from '../sim/rci';
+import { triggerEarthquake, updateFires, type DisasterSettings } from '../sim/disasters';
+import { computeServiceCoverage } from '../sim/services';
 
 export const DEFAULT_MAP_SIZE = 48;
 const MONTH_LENGTH_DAYS = 30;
@@ -32,6 +34,7 @@ export interface GameState {
   lastBudget: DailyBudget | null;
   bonds: Bond[];
   nextBondId: number;
+  disasters: DisasterSettings;
 
   setCamera: (cam: Partial<Camera>) => void;
   setTool: (tool: ToolId) => void;
@@ -49,6 +52,9 @@ export interface GameState {
   loadCity: (map: CityMap, extra?: Partial<GameState>) => void;
   saveGame: () => void;
   loadGame: () => boolean;
+  setDisastersEnabled: (enabled: boolean) => void;
+  triggerEarthquake: () => void;
+  triggerFire: () => void;
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -69,6 +75,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   lastBudget: null,
   bonds: [],
   nextBondId: 1,
+  disasters: { enabled: true },
 
   setCamera: (cam) =>
     set((s) => ({
@@ -123,6 +130,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     const result = runSimTick(s.map, {
       taxRates: s.taxRates,
       simDay: s.simDay,
+      disasters: s.disasters,
     });
 
     const debtService = dailyDebtService(s.bonds);
@@ -174,6 +182,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       bonds: s.bonds,
       nextBondId: s.nextBondId,
       camera: s.camera,
+      disastersEnabled: s.disasters.enabled,
     });
   },
 
@@ -191,6 +200,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       taxRates: meta.taxRates,
       bonds: meta.bonds,
       nextBondId: meta.nextBondId,
+      disasters: { enabled: meta.disastersEnabled },
       population: totals.population,
       jobs: totals.totalJobs,
       selectedTile: null,
@@ -198,6 +208,29 @@ export const useGameStore = create<GameState>((set, get) => ({
       lastBudget: null,
     });
     return true;
+  },
+
+  setDisastersEnabled: (enabled) => set({ disasters: { enabled } }),
+
+  triggerEarthquake: () => {
+    const s = get();
+    const x = Math.floor(Math.random() * s.map.width);
+    const y = Math.floor(Math.random() * s.map.height);
+    triggerEarthquake(s.map, x, y, 6);
+    set((st) => ({ mapVersion: st.mapVersion + 1 }));
+  },
+
+  triggerFire: () => {
+    const s = get();
+    const n = s.map.width * s.map.height;
+    const developedTiles: number[] = [];
+    for (let i = 0; i < n; i++) if (s.map.developmentLevel[i] > 0) developedTiles.push(i);
+    if (developedTiles.length === 0) return;
+    const i = developedTiles[Math.floor(Math.random() * developedTiles.length)];
+    s.map.disaster[i] = 1;
+    const coverage = computeServiceCoverage(s.map);
+    updateFires(s.map, coverage);
+    set((st) => ({ mapVersion: st.mapVersion + 1 }));
   },
 }));
 

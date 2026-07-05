@@ -23,6 +23,10 @@ export function BudgetPanel({ open, onClose }: { open: boolean; onClose: () => v
   const bonds = useGameStore((s) => s.bonds);
   const takeLoan = useGameStore((s) => s.takeLoan);
   const funds = useGameStore((s) => s.funds);
+  const disastersEnabled = useGameStore((s) => s.disasters.enabled);
+  const setDisastersEnabled = useGameStore((s) => s.setDisastersEnabled);
+  const triggerFire = useGameStore((s) => s.triggerFire);
+  const triggerEarthquake = useGameStore((s) => s.triggerEarthquake);
   const saveGame = useGameStore((s) => s.saveGame);
   const loadGame = useGameStore((s) => s.loadGame);
   const newCity = useGameStore((s) => s.newCity);
@@ -103,6 +107,37 @@ export function BudgetPanel({ open, onClose }: { open: boolean; onClose: () => v
               </div>
             )}
             {saveMessage && <p className="text-xs text-white/50 text-center">{saveMessage}</p>}
+          </div>
+        </section>
+
+        <section className="mb-5">
+          <h3 className="text-sm font-semibold text-white/70 mb-2">Disasters</h3>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-white/70">Enabled (fires, earthquakes)</span>
+            <button
+              onClick={() => setDisastersEnabled(!disastersEnabled)}
+              className={`w-14 h-8 rounded-full flex items-center px-1 transition-colors ${disastersEnabled ? 'bg-emerald-600 justify-end' : 'bg-white/15 justify-start'}`}
+              aria-label="Toggle disasters"
+              aria-pressed={disastersEnabled}
+            >
+              <span className="w-6 h-6 rounded-full bg-white block" />
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={triggerFire}
+              disabled={!disastersEnabled}
+              className="flex-1 h-11 rounded-lg bg-white/10 active:bg-white/20 disabled:opacity-40 text-sm font-medium"
+            >
+              🔥 Start a fire
+            </button>
+            <button
+              onClick={triggerEarthquake}
+              disabled={!disastersEnabled}
+              className="flex-1 h-11 rounded-lg bg-white/10 active:bg-white/20 disabled:opacity-40 text-sm font-medium"
+            >
+              Earthquake
+            </button>
           </div>
         </section>
 

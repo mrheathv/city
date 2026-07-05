@@ -90,6 +90,7 @@ export interface TileInfo {
   population: number;
   jobs: number;
   developmentLevel: number; // 0-3, 0 = undeveloped zoned lot
+  onFire: boolean;
   abandoned: boolean;
   facilityId: number; // 0 = none, else references Facility.id (+1 offset)
 }

@@ -25,6 +25,7 @@ describe('save/load round-trip', () => {
       bonds: [],
       nextBondId: 1,
       camera: { x: 100, y: 200, zoom: 1.5 },
+      disastersEnabled: true,
     };
 
     const save = serializeCity(map, meta);

@@ -23,7 +23,7 @@ export function TileInfoPanel() {
     <div className="pointer-events-auto absolute bottom-[calc(3.5rem+8px)] left-2 right-2 sm:left-auto sm:w-80 bg-black/85 backdrop-blur-sm text-white rounded-xl border border-white/10 p-3 text-sm shadow-lg">
       <div className="flex items-start justify-between mb-2">
         <div className="font-semibold">
-          Tile ({info.x}, {info.y})
+          Tile ({info.x}, {info.y}) {info.onFire && <span className="text-orange-400">🔥 On fire!</span>}
         </div>
         <button
           onClick={clearSelection}

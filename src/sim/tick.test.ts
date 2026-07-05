@@ -101,6 +101,7 @@ describe('full city tick integration', () => {
       result = runSimTick(map, {
         taxRates: { residential: 9, commercial: 9, industrial: 9 },
         simDay: day,
+        disasters: { enabled: false },
       });
     }
 

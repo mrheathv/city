@@ -58,6 +58,24 @@ export class PlaceholderTileset implements Tileset {
         this.drawFacility(ctx, facility.type, sx, sy, size, FACILITY_DEFS[facility.type].size);
       }
     }
+
+    if (map.disaster[i] === 1) this.drawFire(ctx, x, y, sx, sy, size);
+  }
+
+  private drawFire(ctx: CanvasRenderingContext2D, x: number, y: number, sx: number, sy: number, size: number) {
+    const flicker = hashRand(x, y, 3);
+    ctx.fillStyle = `rgba(255,${100 + Math.round(flicker * 80)},0,0.85)`;
+    const cx = sx + size / 2;
+    const cy = sy + size / 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, sy + size * 0.1);
+    ctx.quadraticCurveTo(sx + size * 0.85, cy, cx, sy + size * 0.9);
+    ctx.quadraticCurveTo(sx + size * 0.15, cy, cx, sy + size * 0.1);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,230,120,0.9)';
+    ctx.beginPath();
+    ctx.arc(cx, cy + size * 0.1, size * 0.12, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   private drawWater(ctx: CanvasRenderingContext2D, x: number, y: number, sx: number, sy: number, size: number) {

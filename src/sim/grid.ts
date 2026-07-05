@@ -27,6 +27,8 @@ export class CityMap {
   readonly developmentLevel: Uint8Array;
   readonly abandoned: Uint8Array;
   readonly facilityId: Uint16Array;
+  /** 1 = actively on fire this tick (transient, for rendering + next-tick spread/destruction). */
+  readonly disaster: Uint8Array;
 
   facilities: Map<number, Facility> = new Map();
   private nextFacilityId = 1;
@@ -52,6 +54,7 @@ export class CityMap {
     this.developmentLevel = new Uint8Array(n);
     this.abandoned = new Uint8Array(n);
     this.facilityId = new Uint16Array(n);
+    this.disaster = new Uint8Array(n);
   }
 
   idx(x: number, y: number): number {
@@ -106,6 +109,7 @@ export class CityMap {
       developmentLevel: this.developmentLevel[i],
       abandoned: this.abandoned[i] === 1,
       facilityId: this.facilityId[i],
+      onFire: this.disaster[i] === 1,
     };
   }
 }
