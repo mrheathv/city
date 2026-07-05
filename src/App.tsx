@@ -4,9 +4,11 @@ import { TopBar } from './components/TopBar';
 import { BottomToolbar } from './components/BottomToolbar';
 import { TileInfoPanel } from './components/TileInfoPanel';
 import { BudgetPanel } from './components/BudgetPanel';
+import { Onboarding, hasSeenOnboarding } from './components/Onboarding';
 
 function App() {
   const [showBudget, setShowBudget] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(() => !hasSeenOnboarding());
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-black">
@@ -14,7 +16,8 @@ function App() {
       <TopBar onMenu={() => setShowBudget(true)} />
       <TileInfoPanel />
       <BottomToolbar />
-      <BudgetPanel open={showBudget} onClose={() => setShowBudget(false)} />
+      <BudgetPanel open={showBudget} onClose={() => setShowBudget(false)} onShowTutorial={() => setShowOnboarding(true)} />
+      {showOnboarding && <Onboarding onDone={() => setShowOnboarding(false)} />}
     </div>
   );
 }

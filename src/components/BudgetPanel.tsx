@@ -16,7 +16,15 @@ const LOAN_PRESETS = [
   { amount: 40000, rate: 8, term: 20 },
 ];
 
-export function BudgetPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function BudgetPanel({
+  open,
+  onClose,
+  onShowTutorial,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onShowTutorial: () => void;
+}) {
   const taxRates = useGameStore((s) => s.taxRates);
   const setTaxRate = useGameStore((s) => s.setTaxRate);
   const lastBudget = useGameStore((s) => s.lastBudget);
@@ -107,6 +115,15 @@ export function BudgetPanel({ open, onClose }: { open: boolean; onClose: () => v
               </div>
             )}
             {saveMessage && <p className="text-xs text-white/50 text-center">{saveMessage}</p>}
+            <button
+              onClick={() => {
+                onShowTutorial();
+                onClose();
+              }}
+              className="h-12 rounded-lg bg-white/10 active:bg-white/20 text-sm font-medium"
+            >
+              How to play
+            </button>
           </div>
         </section>
 
