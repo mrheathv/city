@@ -1,6 +1,7 @@
 import { CityMap } from './grid';
 import { updatePowerGrid } from './power';
 import { updateWaterGrid } from './water';
+import { updateTraffic, type TrafficResult } from './traffic';
 import { computeServiceCoverage } from './services';
 import { computePollution, computeCrimeAndFireRisk } from './environment';
 import { computeLandValue, averageLandValue } from './landvalue';
@@ -22,11 +23,17 @@ export interface TickResult {
   jobs: number;
   demand: RCIDemand;
   avgLandValue: number;
+  traffic: TrafficResult;
 }
 
 export function runSimTick(map: CityMap, input: TickInput): TickResult {
   updatePowerGrid(map);
   updateWaterGrid(map);
+
+  // Traffic is computed from last tick's population/jobs (grown further
+  // down below), which is the standard one-tick-lagged feedback loop used
+  // throughout this simulation to avoid same-tick circular dependencies.
+  const traffic = updateTraffic(map);
 
   const coverage = computeServiceCoverage(map);
   computePollution(map);
@@ -35,7 +42,7 @@ export function runSimTick(map: CityMap, input: TickInput): TickResult {
   const avgLandValue = averageLandValue(map);
 
   const totals = computeCityTotals(map);
-  const demand = computeRCIDemand(totals, avgLandValue, input.taxRates, input.simDay);
+  const demand = computeRCIDemand(totals, avgLandValue, input.taxRates, input.simDay, traffic.avgCommuteDistance);
   applyGrowth(map, demand);
 
   const budget = computeDailyBudget(map, input.taxRates);
@@ -47,5 +54,6 @@ export function runSimTick(map: CityMap, input: TickInput): TickResult {
     jobs: newTotals.totalJobs,
     demand,
     avgLandValue,
+    traffic,
   };
 }

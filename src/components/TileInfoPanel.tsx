@@ -1,5 +1,5 @@
 import { useGameStore } from '../state/store';
-import { ZoneType, zoneCategory } from '../sim/types';
+import { NetworkFlag, ZoneType, zoneCategory } from '../sim/types';
 
 const ZONE_LABELS: Record<number, string> = {
   [ZoneType.None]: 'Unzoned',
@@ -70,6 +70,13 @@ export function TileInfoPanel() {
 
         <dt className="text-white/50">Fire risk</dt>
         <dd>{Math.round((info.fireRisk / 255) * 100)}</dd>
+
+        {(info.networks & NetworkFlag.Road) !== 0 && (
+          <>
+            <dt className="text-white/50">Traffic</dt>
+            <dd>{Math.round((info.traffic / 255) * 100)}</dd>
+          </>
+        )}
       </dl>
     </div>
   );

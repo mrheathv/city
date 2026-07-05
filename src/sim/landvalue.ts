@@ -60,6 +60,7 @@ export function computeLandValue(map: CityMap, coverage: ServiceCoverage): void 
       value -= (map.pollution[i] / 255) * 90;
       value -= (map.crime[i] / 255) * 90;
       value -= (map.fireRisk[i] / 255) * 35;
+      value -= (map.traffic[i] / 255) * 45;
 
       map.landValue[i] = Math.max(0, Math.min(255, Math.round(value)));
     }

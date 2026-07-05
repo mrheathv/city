@@ -58,6 +58,7 @@ export function computeRCIDemand(
   avgLandValue: number,
   taxRates: TaxRates,
   simDay: number,
+  avgCommuteDistance = 0,
 ): RCIDemand {
   const cycle = businessCycleMultiplier(simDay); // -0.5..0.5
   const workers = totals.residentialCapacityJobsSeeking;
@@ -81,9 +82,16 @@ export function computeRCIDemand(
   // market and tax base exist to drive things organically.
   const BOOTSTRAP = 15;
 
+  // A long average commute (in tiles of road distance, congestion-weighted)
+  // makes a city a less desirable place to live — this is what lets traffic
+  // jams suppress residential growth rather than just looking bad on screen.
+  const commutePenalty = Math.max(0, (avgCommuteDistance - 12) * 1.8);
+
   // Residential: attracted by jobs being available relative to current workers,
-  // by good land value, and by the macro cycle. Suppressed by high residential tax.
-  let residential = BOOTSTRAP + (jobsPerWorker - 1) * 35 + landValueFactor * 20 + cycle * 40 + taxDrag(taxRates.residential);
+  // by good land value, and by the macro cycle. Suppressed by high residential
+  // tax and by long commutes.
+  let residential =
+    BOOTSTRAP + (jobsPerWorker - 1) * 35 + landValueFactor * 20 + cycle * 40 + taxDrag(taxRates.residential) - commutePenalty;
 
   // Commercial: needs a local customer base (population) and goods supplied by
   // industry; too little of either caps commercial growth.
