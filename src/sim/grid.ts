@@ -73,6 +73,17 @@ export class CityMap {
     this.facilities.delete(id);
   }
 
+  /** Rehydrates facilities from a save file, restoring the id counter so future placements don't collide. */
+  restoreFacilities(facilities: Facility[]) {
+    this.facilities.clear();
+    let maxId = 0;
+    for (const f of facilities) {
+      this.facilities.set(f.id, f);
+      maxId = Math.max(maxId, f.id);
+    }
+    this.nextFacilityId = maxId + 1;
+  }
+
   getTile(x: number, y: number): TileInfo {
     const i = this.idx(x, y);
     return {

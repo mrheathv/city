@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useGameStore } from '../state/store';
 import { totalOutstandingDebt } from '../sim/bonds';
 import { formatMoney } from '../utils/format';
+import { hasSavedGame } from '../state/save';
 
 const TAX_KINDS = [
   { key: 'residential' as const, label: 'Residential' },
@@ -21,6 +23,11 @@ export function BudgetPanel({ open, onClose }: { open: boolean; onClose: () => v
   const bonds = useGameStore((s) => s.bonds);
   const takeLoan = useGameStore((s) => s.takeLoan);
   const funds = useGameStore((s) => s.funds);
+  const saveGame = useGameStore((s) => s.saveGame);
+  const loadGame = useGameStore((s) => s.loadGame);
+  const newCity = useGameStore((s) => s.newCity);
+  const [confirmNewCity, setConfirmNewCity] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   if (!open) return null;
 
@@ -31,7 +38,7 @@ export function BudgetPanel({ open, onClose }: { open: boolean; onClose: () => v
     <div className="pointer-events-auto absolute inset-0 z-20 flex flex-col justify-end sm:justify-center sm:items-center bg-black/50">
       <div className="w-full sm:w-[28rem] sm:max-h-[85vh] max-h-[80vh] overflow-y-auto bg-neutral-900 text-white rounded-t-2xl sm:rounded-2xl border border-white/10 p-4 pb-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Budget & Taxes</h2>
+          <h2 className="text-lg font-semibold">City Menu</h2>
           <button
             onClick={onClose}
             className="w-11 h-11 rounded-lg bg-white/10 active:bg-white/20 flex items-center justify-center text-xl"
@@ -43,6 +50,61 @@ export function BudgetPanel({ open, onClose }: { open: boolean; onClose: () => v
 
         <div className="mb-2 text-sm text-white/60">Treasury</div>
         <div className="text-2xl font-semibold mb-4">{formatMoney(funds)}</div>
+
+        <section className="mb-5">
+          <h3 className="text-sm font-semibold text-white/70 mb-2">Game</h3>
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={() => {
+                saveGame();
+                setSaveMessage('City saved.');
+                setTimeout(() => setSaveMessage(null), 2000);
+              }}
+              className="h-12 rounded-lg bg-white/10 active:bg-white/20 text-sm font-medium"
+            >
+              Save city
+            </button>
+            <button
+              onClick={() => {
+                const ok = loadGame();
+                setSaveMessage(ok ? 'City loaded.' : 'No saved city found.');
+                setTimeout(() => setSaveMessage(null), 2000);
+              }}
+              disabled={!hasSavedGame()}
+              className="h-12 rounded-lg bg-white/10 active:bg-white/20 disabled:opacity-40 text-sm font-medium"
+            >
+              Load saved city
+            </button>
+            {!confirmNewCity ? (
+              <button
+                onClick={() => setConfirmNewCity(true)}
+                className="h-12 rounded-lg bg-white/10 active:bg-white/20 text-sm font-medium"
+              >
+                Start new city
+              </button>
+            ) : (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    newCity(48, 48, Date.now() & 0xffffffff);
+                    setConfirmNewCity(false);
+                    onClose();
+                  }}
+                  className="flex-1 h-12 rounded-lg bg-red-600/80 active:bg-red-600 text-sm font-medium"
+                >
+                  Confirm: discard current city
+                </button>
+                <button
+                  onClick={() => setConfirmNewCity(false)}
+                  className="h-12 px-4 rounded-lg bg-white/10 active:bg-white/20 text-sm font-medium"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+            {saveMessage && <p className="text-xs text-white/50 text-center">{saveMessage}</p>}
+          </div>
+        </section>
 
         <section className="mb-5">
           <h3 className="text-sm font-semibold text-white/70 mb-2">Tax rates</h3>

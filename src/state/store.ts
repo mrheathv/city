@@ -8,6 +8,8 @@ import { runSimTick } from '../sim/tick';
 import type { SimSpeed } from '../sim/tick';
 import type { DailyBudget } from '../sim/budget';
 import { createBond, amortizeMonthly, dailyDebtService, type Bond } from '../sim/bonds';
+import { saveToLocalStorage, loadFromLocalStorage } from './save';
+import { computeCityTotals } from '../sim/rci';
 
 export const DEFAULT_MAP_SIZE = 48;
 const MONTH_LENGTH_DAYS = 30;
@@ -45,6 +47,8 @@ export interface GameState {
   bumpVersion: () => void;
   newCity: (width: number, height: number, seed: number) => void;
   loadCity: (map: CityMap, extra?: Partial<GameState>) => void;
+  saveGame: () => void;
+  loadGame: () => boolean;
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -159,6 +163,41 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   loadCity: (map, extra) => {
     set({ map, mapVersion: 0, selectedTile: null, selectedTileInfo: null, ...extra });
+  },
+
+  saveGame: () => {
+    const s = get();
+    saveToLocalStorage(s.map, {
+      funds: s.funds,
+      simDay: s.simDay,
+      taxRates: s.taxRates,
+      bonds: s.bonds,
+      nextBondId: s.nextBondId,
+      camera: s.camera,
+    });
+  },
+
+  loadGame: () => {
+    const loaded = loadFromLocalStorage();
+    if (!loaded) return false;
+    const { map, meta } = loaded;
+    const totals = computeCityTotals(map);
+    set({
+      map,
+      mapVersion: 0,
+      camera: meta.camera,
+      funds: meta.funds,
+      simDay: meta.simDay,
+      taxRates: meta.taxRates,
+      bonds: meta.bonds,
+      nextBondId: meta.nextBondId,
+      population: totals.population,
+      jobs: totals.totalJobs,
+      selectedTile: null,
+      selectedTileInfo: null,
+      lastBudget: null,
+    });
+    return true;
   },
 }));
 
