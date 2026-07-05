@@ -6,6 +6,7 @@ export interface RenderOptions {
   showGrid?: boolean;
   hoverTile?: { x: number; y: number } | null;
   selectedTile?: { x: number; y: number } | null;
+  underground?: boolean;
 }
 
 /**
@@ -32,7 +33,11 @@ export function renderFrame(
   for (let y = minY; y <= maxY; y++) {
     for (let x = minX; x <= maxX; x++) {
       const screen = worldToScreen(camera, screenW, screenH, x * BASE_TILE_SIZE, y * BASE_TILE_SIZE);
-      tileset.drawTile(ctx, map, x, y, screen.x, screen.y, size);
+      if (opts.underground) {
+        tileset.drawUndergroundTile(ctx, map, x, y, screen.x, screen.y, size);
+      } else {
+        tileset.drawTile(ctx, map, x, y, screen.x, screen.y, size);
+      }
     }
   }
 

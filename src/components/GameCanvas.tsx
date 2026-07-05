@@ -50,6 +50,7 @@ export function GameCanvas() {
         showGrid: state.camera.zoom > 0.6,
         hoverTile: hoverRef.current,
         selectedTile: state.selectedTile,
+        underground: state.undergroundView,
       });
 
       if (!state.paused) {

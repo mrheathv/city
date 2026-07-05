@@ -12,6 +12,8 @@ import { FACILITY_DEFS } from '../sim/facilities';
  */
 export interface Tileset {
   drawTile(ctx: CanvasRenderingContext2D, map: CityMap, x: number, y: number, sx: number, sy: number, size: number): void;
+  /** Underground layer: dims the surface and highlights the water pipe network, since pipes have no surface presence. */
+  drawUndergroundTile(ctx: CanvasRenderingContext2D, map: CityMap, x: number, y: number, sx: number, sy: number, size: number): void;
 }
 
 const ZONE_COLORS: Record<number, { base: string; dev: string }> = {
@@ -60,6 +62,82 @@ export class PlaceholderTileset implements Tileset {
     }
 
     if (map.disaster[i] === 1) this.drawFire(ctx, x, y, sx, sy, size);
+  }
+
+  drawUndergroundTile(ctx: CanvasRenderingContext2D, map: CityMap, x: number, y: number, sx: number, sy: number, size: number) {
+    const i = map.idx(x, y);
+    const isWater = map.terrain[i] === Terrain.Water;
+
+    ctx.fillStyle = isWater ? '#0d1f2b' : '#1b1f24';
+    ctx.fillRect(sx, sy, size, size);
+
+    // Roads render as a faint outline only, for spatial reference — the
+    // point of this view is the pipe network, not the street grid.
+    if (map.networks[i] & NetworkFlag.Road) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.lineWidth = Math.max(1, size * 0.1);
+      ctx.strokeRect(sx + size * 0.15, sy + size * 0.15, size * 0.7, size * 0.7);
+    }
+
+    if (map.networks[i] & NetworkFlag.WaterPipe) {
+      this.drawPipe(ctx, map, x, y, sx, sy, size);
+    }
+
+    if (map.facilityId[i] > 0) {
+      const facility = map.facilities.get(map.facilityId[i]);
+      if (facility && facility.x === x && facility.y === y) {
+        const def = FACILITY_DEFS[facility.type];
+        const isWaterFacility = facility.type === 'water_pump' || facility.type === 'water_tower';
+        if (isWaterFacility) {
+          this.drawFacility(ctx, facility.type, sx, sy, size, def.size);
+        } else {
+          // Non-water facilities still occupy space underground; show a dim placeholder.
+          ctx.fillStyle = 'rgba(255,255,255,0.06)';
+          ctx.fillRect(sx + 2, sy + 2, size * def.size - 4, size * def.size - 4);
+        }
+      }
+    }
+  }
+
+  private pipeNeighborMask(map: CityMap, x: number, y: number): number {
+    let mask = 0;
+    const has = (nx: number, ny: number) =>
+      map.inBounds(nx, ny) && (map.networks[map.idx(nx, ny)] & NetworkFlag.WaterPipe) !== 0;
+    if (has(x, y - 1)) mask |= 1;
+    if (has(x + 1, y)) mask |= 2;
+    if (has(x, y + 1)) mask |= 4;
+    if (has(x - 1, y)) mask |= 8;
+    return mask;
+  }
+
+  private drawPipe(ctx: CanvasRenderingContext2D, map: CityMap, x: number, y: number, sx: number, sy: number, size: number) {
+    const mask = this.pipeNeighborMask(map, x, y);
+    const cx = sx + size / 2;
+    const cy = sy + size / 2;
+
+    ctx.strokeStyle = '#2fb6e0';
+    ctx.lineWidth = Math.max(2, size * 0.22);
+    ctx.lineCap = 'round';
+
+    // Spurs radiate from the center hub toward each connected neighbor; an
+    // isolated pipe tile draws all four so it still reads as "a pipe" (same
+    // convention drawRoad uses for isolated road tiles).
+    if (mask & 1 || mask === 0) this.strokeSpur(ctx, cx, cy, cx, sy);
+    if (mask & 2 || mask === 0) this.strokeSpur(ctx, cx, cy, sx + size, cy);
+    if (mask & 4 || mask === 0) this.strokeSpur(ctx, cx, cy, cx, sy + size);
+    if (mask & 8 || mask === 0) this.strokeSpur(ctx, cx, cy, sx, cy);
+
+    ctx.fillStyle = '#8fe3ff';
+    ctx.beginPath();
+    ctx.arc(cx, cy, size * 0.1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  private strokeSpur(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number) {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
   }
 
   private drawFire(ctx: CanvasRenderingContext2D, x: number, y: number, sx: number, sy: number, size: number) {

@@ -35,9 +35,11 @@ export interface GameState {
   bonds: Bond[];
   nextBondId: number;
   disasters: DisasterSettings;
+  undergroundView: boolean;
 
   setCamera: (cam: Partial<Camera>) => void;
   setTool: (tool: ToolId) => void;
+  setUndergroundView: (v: boolean) => void;
   setHoverTile: (t: { x: number; y: number } | null) => void;
   paintTile: (x: number, y: number) => void;
   selectTile: (x: number, y: number) => void;
@@ -76,6 +78,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   bonds: [],
   nextBondId: 1,
   disasters: { enabled: true },
+  undergroundView: false,
 
   setCamera: (cam) =>
     set((s) => ({
@@ -86,7 +89,13 @@ export const useGameStore = create<GameState>((set, get) => ({
       },
     })),
 
-  setTool: (tool) => set({ tool }),
+  // Picking the water pipe tool automatically switches to the underground
+  // view (pipes are invisible on the surface otherwise), mirroring how
+  // classic SimCity auto-switches to the underground view for subway/pipe
+  // tools. Picking any other tool switches back to the surface.
+  setTool: (tool) => set({ tool, undergroundView: tool === 'waterpipe' }),
+
+  setUndergroundView: (v) => set({ undergroundView: v }),
 
   setHoverTile: (t) => set({ hoverTile: t }),
 
