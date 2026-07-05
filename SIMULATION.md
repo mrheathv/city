@@ -46,29 +46,32 @@ of them along the same street.
 
 Each tick, `computeUtilityCoverage` (shared by power and water):
 
-1. Flood-fills the conduit network (power line tiles, or water pipe tiles)
-   plus any source facility's footprint (a power plant's tiles conduct too)
-   into connected components via BFS.
+1. Flood-fills a conductive graph into connected components via BFS. A tile
+   conducts if it's a power line/pipe tile, a source facility's footprint
+   (a power plant's tiles conduct too), *or* a tile with its own demand — a
+   zoned lot or civic building. That last case is what lets power/water
+   propagate building to building without a dedicated line on every tile,
+   matching the original game: a powered building relays power to its
+   powered neighbors, so you only need to actually run a line to bridge
+   gaps of vacant land, not to reach every single lot along a street.
+   Connectivity here is purely topological — whether current can physically
+   reach a tile — independent of whether capacity actually covers it; a
+   shortfall shows up as some tiles in the component going dark during
+   allocation (next step), not as a break in the graph itself.
 2. For each component containing at least one source, sums that source's
    capacity (`FacilityDef.powerOutput` / `waterOutput`).
-3. Finds every tile adjacent to the component with nonzero demand — any
-   zoned tile demands `POWER_DEMAND_PER_TILE` / `WATER_DEMAND_PER_TILE`
-   (4 units each), civic buildings without their own generation demand a
-   double share.
-4. Allocates capacity to demanding tiles **in tile-index order** until
-   exhausted.
+3. Allocates that capacity to every demanding tile already in the component
+   (any zoned tile demands `POWER_DEMAND_PER_TILE` / `WATER_DEMAND_PER_TILE`,
+   4 units each; civic buildings without their own generation demand a
+   double share) **in component-discovery order** until exhausted.
 
-**Assumption / known simplification:** allocation order is deterministic
-tile-index order, not proximity- or fairness-based. Under a capacity
-shortfall this means low-index tiles (top-left of the map) are favored,
+**Assumption / known simplification:** allocation order follows BFS
+discovery order, not proximity- or fairness-based. Under a capacity
+shortfall this means tiles closer to the source (in BFS terms) are favored,
 which is a simplification of real brownout behavior. It's cheap and stable;
 a fairer scheme (e.g. round-robin, or proportional scaling) would be a
 reasonable follow-up if it becomes a noticeable "always the same lights go
 out" pattern in a long-running city.
-
-**Assumption:** a tile must be *adjacent* (4-directional, distance 1) to a
-powered conduit tile to be powered — there's no separate "substation range."
-This mirrors how power lines work in the original game.
 
 ## Land value (`src/sim/landvalue.ts`)
 

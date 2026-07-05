@@ -6,12 +6,21 @@ export interface UtilitySource {
 }
 
 /**
- * Flood-fills a conduit network (power lines or water pipes, plus any source
- * facility footprints, which also conduct) into connected components, then
- * allocates each component's total source capacity to demanding tiles that
- * touch the network. Allocation order is tile-index order, which is
- * deterministic but not "fair" — see SIMULATION.md for the brownout
- * simplification this implies.
+ * Flood-fills a conduit network into connected components, then allocates
+ * each component's total source capacity to every demanding tile in it.
+ * Allocation order is tile-index order, which is deterministic but not
+ * "fair" — see SIMULATION.md for the brownout simplification this implies.
+ *
+ * A tile conducts if it's a power line/pipe tile, a source facility's
+ * footprint, *or* a tile with its own demand (a zoned lot or civic
+ * building). That last case is what lets power/water propagate building to
+ * building without a dedicated line on every single tile — matching how
+ * the classic game worked, where a powered building relays power to its
+ * powered neighbors and you only need to actually run wire to bridge gaps
+ * of vacant land. Connectivity here is purely topological (can current
+ * physically reach this tile), independent of whether capacity actually
+ * covers it — a shortfall causes some tiles in the component to go dark
+ * during allocation below, not a break in the graph itself.
  */
 export function computeUtilityCoverage(
   map: CityMap,
@@ -27,6 +36,7 @@ export function computeUtilityCoverage(
 
   for (let i = 0; i < n; i++) {
     if (map.networks[i] & conduitFlag) conductive[i] = 1;
+    else if (demandAt(i) > 0) conductive[i] = 1;
   }
   for (const src of sources) {
     for (const ti of src.tileIndices) conductive[ti] = 1;
@@ -86,30 +96,13 @@ export function computeUtilityCoverage(
     }
     if (capacity <= 0) continue;
 
-    const candidates: number[] = [];
-    const consideredSet = new Set<number>();
-    for (const ci of component) {
-      const cx = ci % width;
-      const cy = (ci / width) | 0;
-      const pts: [number, number][] = [
-        [cx, cy],
-        [cx + 1, cy],
-        [cx - 1, cy],
-        [cx, cy + 1],
-        [cx, cy - 1],
-      ];
-      for (const [px, py] of pts) {
-        if (px < 0 || py < 0 || px >= width || py >= height) continue;
-        const pi = py * width + px;
-        if (consideredSet.has(pi)) continue;
-        consideredSet.add(pi);
-        if (demandAt(pi) > 0) candidates.push(pi);
-      }
-    }
-
+    // Every demanding tile in the component is already a node in it (demand
+    // tiles conduct too, per the doc comment above), so there's no separate
+    // "find neighbors of the component" step needed anymore.
     let remaining = capacity;
-    for (const pi of candidates) {
+    for (const pi of component) {
       const d = demandAt(pi);
+      if (d <= 0) continue;
       if (remaining >= d) {
         covered[pi] = 1;
         remaining -= d;

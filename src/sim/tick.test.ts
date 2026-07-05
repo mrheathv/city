@@ -42,6 +42,40 @@ describe('utility networks', () => {
     expect(map.powered[disconnected]).toBe(0);
     expect(map.watered[disconnected]).toBe(0);
   });
+
+  it('relays power/water from one zoned tile to its adjacent neighbor without a line on every tile', () => {
+    const map = makeFlatMap();
+    const funds = 100000;
+
+    // A single road/power/water tile, then a row of five residential tiles
+    // extending away from it — only the first one touches the network directly.
+    applyTool(map, 'road', 5, 5, funds);
+    applyTool(map, 'powerline', 5, 5, funds);
+    applyTool(map, 'waterpipe', 5, 5, funds);
+    for (let x = 5; x <= 9; x++) applyTool(map, 'zone_res_low', x, 4, funds);
+    // Plants sit off to the side (columns 12+) so their 4x4/2x2 footprints
+    // don't collide with the single-tile pipe/line column running down from (5,5).
+    applyTool(map, 'facility_power_coal', 12, 6, funds);
+    applyTool(map, 'facility_water_pump', 12, 10, funds);
+    for (let y = 6; y <= 9; y++) {
+      applyTool(map, 'powerline', 5, y, funds);
+      applyTool(map, 'waterpipe', 5, y, funds);
+    }
+    // connect the column at x=5 across to the plants at x=12
+    for (let x = 5; x <= 12; x++) {
+      applyTool(map, 'powerline', x, 6, funds);
+      applyTool(map, 'waterpipe', x, 10, funds);
+    }
+
+    updatePowerGrid(map);
+    updateWaterGrid(map);
+
+    for (let x = 5; x <= 9; x++) {
+      const i = map.idx(x, 4);
+      expect(map.powered[i], `tile (${x},4) should be powered via its neighbor`).toBe(1);
+      expect(map.watered[i], `tile (${x},4) should be watered via its neighbor`).toBe(1);
+    }
+  });
 });
 
 describe('applyGrowth', () => {
