@@ -66,12 +66,17 @@ function removeFacilityAt(map: CityMap, x: number, y: number): number {
 }
 
 function canPlaceFootprint(map: CityMap, x: number, y: number, size: number): boolean {
-  if (x + size > map.width || y + size > map.height) return false;
+  if (x < 0 || y < 0 || x + size > map.width || y + size > map.height) return false;
   for (let dy = 0; dy < size; dy++) {
     for (let dx = 0; dx < size; dx++) {
       const i = map.idx(x + dx, y + dy);
       if (map.terrain[i] === Terrain.Water) return false;
       if (map.facilityId[i] !== 0) return false;
+      // Require the footprint to be empty land — otherwise a facility would
+      // silently bulldoze any zoned tile (developed or not) or infrastructure
+      // underneath it with no warning and no refund.
+      if (map.zone[i] !== ZoneType.None) return false;
+      if (map.networks[i] !== 0) return false;
     }
   }
   return true;
@@ -142,10 +147,10 @@ export function applyTool(map: CityMap, tool: ToolId, x: number, y: number, fund
     const facility = map.addFacility(facilityType, x, y);
     for (let dy = 0; dy < def.size; dy++) {
       for (let dx = 0; dx < def.size; dx++) {
-        const fi = map.idx(x + dx, y + dy);
-        map.zone[fi] = ZoneType.None;
-        map.networks[fi] = 0;
-        map.facilityId[fi] = facility.id;
+        const fx = x + dx;
+        const fy = y + dy;
+        clearTile(map, fx, fy);
+        map.facilityId[map.idx(fx, fy)] = facility.id;
       }
     }
     return { changed: true, cost: def.cost };
