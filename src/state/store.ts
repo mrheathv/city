@@ -6,8 +6,11 @@ import type { ToolId, TileInfo } from '../sim/types';
 import { applyTool } from '../sim/tools';
 import { runSimTick } from '../sim/tick';
 import type { SimSpeed } from '../sim/tick';
+import type { DailyBudget } from '../sim/budget';
+import { createBond, amortizeMonthly, dailyDebtService, type Bond } from '../sim/bonds';
 
 export const DEFAULT_MAP_SIZE = 48;
+const MONTH_LENGTH_DAYS = 30;
 
 export interface GameState {
   map: CityMap;
@@ -24,6 +27,9 @@ export interface GameState {
   population: number;
   jobs: number;
   taxRates: { residential: number; commercial: number; industrial: number };
+  lastBudget: DailyBudget | null;
+  bonds: Bond[];
+  nextBondId: number;
 
   setCamera: (cam: Partial<Camera>) => void;
   setTool: (tool: ToolId) => void;
@@ -34,6 +40,7 @@ export interface GameState {
   setSpeed: (s: SimSpeed) => void;
   togglePause: () => void;
   setTaxRate: (kind: 'residential' | 'commercial' | 'industrial', rate: number) => void;
+  takeLoan: (amount: number, annualRatePercent: number, termYears: number) => void;
   tick: () => void;
   bumpVersion: () => void;
   newCity: (width: number, height: number, seed: number) => void;
@@ -55,6 +62,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   population: 0,
   jobs: 0,
   taxRates: { residential: 9, commercial: 9, industrial: 9 },
+  lastBudget: null,
+  bonds: [],
+  nextBondId: 1,
 
   setCamera: (cam) =>
     set((s) => ({
@@ -96,19 +106,32 @@ export const useGameStore = create<GameState>((set, get) => ({
   setTaxRate: (kind, rate) =>
     set((s) => ({ taxRates: { ...s.taxRates, [kind]: Math.max(0, Math.min(20, rate)) } })),
 
+  takeLoan: (amount, annualRatePercent, termYears) => {
+    const s = get();
+    if (amount <= 0) return;
+    const bond = createBond(s.nextBondId, amount, annualRatePercent, termYears, s.simDay);
+    set({ bonds: [...s.bonds, bond], nextBondId: s.nextBondId + 1, funds: s.funds + amount });
+  },
+
   tick: () => {
     const s = get();
     if (s.paused) return;
     const result = runSimTick(s.map, {
-      funds: s.funds,
       taxRates: s.taxRates,
       simDay: s.simDay,
     });
+
+    const debtService = dailyDebtService(s.bonds);
+    const nextSimDay = s.simDay + 1;
+    const bonds = nextSimDay % MONTH_LENGTH_DAYS === 0 ? amortizeMonthly(s.bonds) : s.bonds;
+
     set({
-      funds: result.funds,
-      simDay: s.simDay + 1,
+      funds: s.funds + result.budget.net - debtService,
+      simDay: nextSimDay,
       population: result.population,
       jobs: result.jobs,
+      lastBudget: result.budget,
+      bonds,
       mapVersion: s.mapVersion + 1,
       selectedTileInfo: s.selectedTile ? s.map.getTile(s.selectedTile.x, s.selectedTile.y) : null,
     });
@@ -128,6 +151,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       jobs: 0,
       selectedTile: null,
       selectedTileInfo: null,
+      lastBudget: null,
+      bonds: [],
+      nextBondId: 1,
     });
   },
 

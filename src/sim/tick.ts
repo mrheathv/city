@@ -7,23 +7,22 @@ import { computePollution, computeCrimeAndFireRisk } from './environment';
 import { computeLandValue, averageLandValue } from './landvalue';
 import { computeCityTotals, computeRCIDemand, type TaxRates, type RCIDemand } from './rci';
 import { applyGrowth } from './growth';
-import { computeDailyBudget } from './budget';
+import { computeDailyBudget, type DailyBudget } from './budget';
 
 export type SimSpeed = 0 | 1 | 2 | 3; // 0 = paused (handled separately), 1-3 = speed multiplier
 
 export interface TickInput {
-  funds: number;
   taxRates: TaxRates;
   simDay: number;
 }
 
 export interface TickResult {
-  funds: number;
   population: number;
   jobs: number;
   demand: RCIDemand;
   avgLandValue: number;
   traffic: TrafficResult;
+  budget: DailyBudget;
 }
 
 export function runSimTick(map: CityMap, input: TickInput): TickResult {
@@ -49,11 +48,11 @@ export function runSimTick(map: CityMap, input: TickInput): TickResult {
   const newTotals = computeCityTotals(map);
 
   return {
-    funds: input.funds + budget.net,
     population: newTotals.population,
     jobs: newTotals.totalJobs,
     demand,
     avgLandValue,
     traffic,
+    budget,
   };
 }

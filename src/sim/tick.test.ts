@@ -99,7 +99,6 @@ describe('full city tick integration', () => {
     let result;
     for (let day = 0; day < 400; day++) {
       result = runSimTick(map, {
-        funds,
         taxRates: { residential: 9, commercial: 9, industrial: 9 },
         simDay: day,
       });

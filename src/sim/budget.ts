@@ -1,21 +1,25 @@
 import { CityMap } from './grid';
 import { FACILITY_DEFS } from './facilities';
-import { NetworkFlag, ZoneType } from './types';
+import { FacilityType, NetworkFlag, ZoneType } from './types';
 import type { TaxRates } from './rci';
 
 export interface DailyBudget {
   residentialTax: number;
   commercialTax: number;
   industrialTax: number;
-  upkeep: number;
+  powerUpkeep: number;
+  waterUpkeep: number;
+  serviceUpkeep: number; // police + fire + health + education + parks
   roadMaintenance: number;
+  totalRevenue: number;
+  totalExpenses: number;
   net: number;
 }
 
-/**
- * Very small daily budget model for Phase 3. Phase 6 replaces this with a
- * full itemized monthly/yearly report plus bonds and interest.
- */
+const POWER_TYPES = new Set<FacilityType>([FacilityType.PowerPlantCoal, FacilityType.PowerPlantSolar]);
+const WATER_TYPES = new Set<FacilityType>([FacilityType.WaterPump, FacilityType.WaterTower]);
+
+/** Daily itemized revenue/expense breakdown, the basis of the monthly/yearly budget report. */
 export function computeDailyBudget(map: CityMap, taxRates: TaxRates): DailyBudget {
   let residentialPop = 0;
   let commercialJobs = 0;
@@ -34,13 +38,30 @@ export function computeDailyBudget(map: CityMap, taxRates: TaxRates): DailyBudge
   const commercialTax = (commercialJobs * taxRates.commercial) / 60;
   const industrialTax = (industrialJobs * taxRates.industrial) / 80;
 
-  let upkeep = 0;
+  let powerUpkeep = 0;
+  let waterUpkeep = 0;
+  let serviceUpkeep = 0;
   for (const facility of map.facilities.values()) {
-    upkeep += FACILITY_DEFS[facility.type].upkeep / 30;
+    const dailyUpkeep = FACILITY_DEFS[facility.type].upkeep / 30;
+    if (POWER_TYPES.has(facility.type)) powerUpkeep += dailyUpkeep;
+    else if (WATER_TYPES.has(facility.type)) waterUpkeep += dailyUpkeep;
+    else serviceUpkeep += dailyUpkeep;
   }
   const roadMaintenance = roadTiles * 0.05;
 
-  const net = residentialTax + commercialTax + industrialTax - upkeep - roadMaintenance;
+  const totalRevenue = residentialTax + commercialTax + industrialTax;
+  const totalExpenses = powerUpkeep + waterUpkeep + serviceUpkeep + roadMaintenance;
 
-  return { residentialTax, commercialTax, industrialTax, upkeep, roadMaintenance, net };
+  return {
+    residentialTax,
+    commercialTax,
+    industrialTax,
+    powerUpkeep,
+    waterUpkeep,
+    serviceUpkeep,
+    roadMaintenance,
+    totalRevenue,
+    totalExpenses,
+    net: totalRevenue - totalExpenses,
+  };
 }
