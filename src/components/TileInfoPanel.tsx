@@ -1,5 +1,7 @@
 import { useGameStore } from '../state/store';
 import { NetworkFlag, ZoneType, zoneCategory } from '../sim/types';
+import { FACILITY_DEFS } from '../sim/facilities';
+import { formatMoney } from '../utils/format';
 
 const ZONE_LABELS: Record<number, string> = {
   [ZoneType.None]: 'Unzoned',
@@ -13,11 +15,14 @@ const ZONE_LABELS: Record<number, string> = {
 
 export function TileInfoPanel() {
   const info = useGameStore((s) => s.selectedTileInfo);
+  const map = useGameStore((s) => s.map);
   const clearSelection = useGameStore((s) => s.clearSelection);
 
   if (!info) return null;
 
   const category = zoneCategory(info.zone);
+  const facility = info.facilityId > 0 ? map.facilities.get(info.facilityId) : undefined;
+  const facilityDef = facility ? FACILITY_DEFS[facility.type] : undefined;
 
   return (
     <div className="pointer-events-auto absolute bottom-[calc(3.5rem+8px)] left-2 right-2 sm:left-auto sm:w-80 bg-black/85 backdrop-blur-sm text-white rounded-xl border border-white/10 p-3 text-sm shadow-lg">
@@ -38,8 +43,44 @@ export function TileInfoPanel() {
         <dt className="text-white/50">Terrain</dt>
         <dd>{info.terrain === 0 ? 'Water' : info.forest ? 'Forest' : 'Land'}</dd>
 
-        <dt className="text-white/50">Zone</dt>
-        <dd>{ZONE_LABELS[info.zone]}</dd>
+        {facilityDef ? (
+          <>
+            <dt className="text-white/50">Building</dt>
+            <dd>{facilityDef.label}</dd>
+
+            <dt className="text-white/50">Footprint</dt>
+            <dd>
+              {facilityDef.size}×{facilityDef.size}
+            </dd>
+
+            <dt className="text-white/50">Upkeep</dt>
+            <dd>{formatMoney(facilityDef.upkeep)}/mo</dd>
+
+            {facilityDef.radius > 0 && (
+              <>
+                <dt className="text-white/50">Coverage radius</dt>
+                <dd>{facilityDef.radius} tiles</dd>
+              </>
+            )}
+            {facilityDef.powerOutput !== undefined && (
+              <>
+                <dt className="text-white/50">Power output</dt>
+                <dd>{facilityDef.powerOutput}</dd>
+              </>
+            )}
+            {facilityDef.waterOutput !== undefined && (
+              <>
+                <dt className="text-white/50">Water output</dt>
+                <dd>{facilityDef.waterOutput}</dd>
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            <dt className="text-white/50">Zone</dt>
+            <dd>{ZONE_LABELS[info.zone]}</dd>
+          </>
+        )}
 
         {category !== 'none' && (
           <>

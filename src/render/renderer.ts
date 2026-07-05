@@ -2,11 +2,22 @@ import { CityMap } from '../sim/grid';
 import { BASE_TILE_SIZE, type Camera, visibleTileRange, worldToScreen } from './camera';
 import type { Tileset } from './tileset';
 
+export interface FootprintOverlay {
+  x: number;
+  y: number;
+  size: number;
+  valid: boolean;
+}
+
 export interface RenderOptions {
   showGrid?: boolean;
   hoverTile?: { x: number; y: number } | null;
   selectedTile?: { x: number; y: number } | null;
   underground?: boolean;
+  /** Ghost outline of a facility's footprint at the hovered tile, green/red by validity. */
+  footprintPreview?: FootprintOverlay | null;
+  /** Brief red flash over a footprint whose placement was just rejected. */
+  rejectedFootprint?: FootprintOverlay | null;
 }
 
 /**
@@ -78,6 +89,28 @@ export function renderFrame(
     ctx.strokeStyle = '#38bdf8';
     ctx.lineWidth = 3;
     ctx.strokeRect(s.x + 1.5, s.y + 1.5, size - 3, size - 3);
+  }
+
+  if (opts.footprintPreview) {
+    const { x, y, size: fSize, valid } = opts.footprintPreview;
+    const s = worldToScreen(camera, screenW, screenH, x * BASE_TILE_SIZE, y * BASE_TILE_SIZE);
+    const w = size * fSize;
+    ctx.fillStyle = valid ? 'rgba(74, 222, 128, 0.25)' : 'rgba(248, 113, 113, 0.3)';
+    ctx.fillRect(s.x, s.y, w, w);
+    ctx.strokeStyle = valid ? 'rgba(74, 222, 128, 0.9)' : 'rgba(248, 113, 113, 0.9)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(s.x + 1, s.y + 1, w - 2, w - 2);
+  }
+
+  if (opts.rejectedFootprint) {
+    const { x, y, size: fSize } = opts.rejectedFootprint;
+    const s = worldToScreen(camera, screenW, screenH, x * BASE_TILE_SIZE, y * BASE_TILE_SIZE);
+    const w = size * fSize;
+    ctx.fillStyle = 'rgba(248, 113, 113, 0.45)';
+    ctx.fillRect(s.x, s.y, w, w);
+    ctx.strokeStyle = 'rgba(248, 113, 113, 1)';
+    ctx.lineWidth = 2.5;
+    ctx.strokeRect(s.x + 1.5, s.y + 1.5, w - 3, w - 3);
   }
 
   ctx.restore();

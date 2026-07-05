@@ -1,8 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { useGameStore } from '../state/store';
-import { renderFrame } from '../render/renderer';
+import { renderFrame, type FootprintOverlay } from '../render/renderer';
 import { PlaceholderTileset } from '../render/tileset';
 import { clampCameraToMap, screenToWorld, worldToTile, zoomAt, type Camera } from '../render/camera';
+import { canPlaceFootprint, facilityDefForTool } from '../sim/tools';
+
+const REJECT_FLASH_MS = 500;
 
 const TICK_INTERVAL_MS: Record<number, number> = { 1: 1000, 2: 400, 3: 150 };
 const TAP_MOVE_THRESHOLD = 8;
@@ -20,6 +23,7 @@ export function GameCanvas() {
   const lastPaintedRef = useRef<{ x: number; y: number } | null>(null);
   const hoverRef = useRef<{ x: number; y: number } | null>(null);
   const lastSinglePointerRef = useRef<{ x: number; y: number } | null>(null);
+  const rejectFlashRef = useRef<(FootprintOverlay & { until: number }) | null>(null);
 
   const lastTickRef = useRef(0);
   const rafRef = useRef(0);
@@ -46,11 +50,24 @@ export function GameCanvas() {
       const { w, h, dpr } = sizeRef.current;
       const state = useGameStore.getState();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      let footprintPreview = null;
+      const facilityDef = facilityDefForTool(state.tool);
+      if (facilityDef && hoverRef.current) {
+        const { x, y } = hoverRef.current;
+        footprintPreview = { x, y, size: facilityDef.size, valid: canPlaceFootprint(state.map, x, y, facilityDef.size) };
+      }
+
+      const reject = rejectFlashRef.current;
+      if (reject && time > reject.until) rejectFlashRef.current = null;
+
       renderFrame(ctx, state.map, tilesetRef.current, state.camera, w, h, {
         showGrid: state.camera.zoom > 0.6,
         hoverTile: hoverRef.current,
         selectedTile: state.selectedTile,
         underground: state.undergroundView,
+        footprintPreview,
+        rejectedFootprint: rejectFlashRef.current,
       });
 
       if (!state.paused) {
@@ -104,7 +121,12 @@ export function GameCanvas() {
     const last = lastPaintedRef.current;
     if (last && last.x === tile.x && last.y === tile.y) return;
     lastPaintedRef.current = tile;
-    useGameStore.getState().paintTile(tile.x, tile.y);
+    const state = useGameStore.getState();
+    const result = state.paintTile(tile.x, tile.y);
+    if (!result.changed && result.reason) {
+      const size = facilityDefForTool(state.tool)?.size ?? 1;
+      rejectFlashRef.current = { x: tile.x, y: tile.y, size, valid: false, until: performance.now() + REJECT_FLASH_MS };
+    }
   }
 
   function onPointerDown(e: React.PointerEvent) {

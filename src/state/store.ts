@@ -3,7 +3,7 @@ import { createCity, CityMap } from '../sim/grid';
 import type { Camera } from '../render/camera';
 import { clampZoom } from '../render/camera';
 import type { ToolId, TileInfo } from '../sim/types';
-import { applyTool } from '../sim/tools';
+import { applyTool, type ToolResult } from '../sim/tools';
 import { runSimTick } from '../sim/tick';
 import type { SimSpeed } from '../sim/tick';
 import type { DailyBudget } from '../sim/budget';
@@ -41,7 +41,7 @@ export interface GameState {
   setTool: (tool: ToolId) => void;
   setUndergroundView: (v: boolean) => void;
   setHoverTile: (t: { x: number; y: number } | null) => void;
-  paintTile: (x: number, y: number) => void;
+  paintTile: (x: number, y: number) => ToolResult;
   selectTile: (x: number, y: number) => void;
   clearSelection: () => void;
   setSpeed: (s: SimSpeed) => void;
@@ -101,11 +101,12 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   paintTile: (x, y) => {
     const { map, tool, funds } = get();
-    if (!map.inBounds(x, y)) return;
+    if (!map.inBounds(x, y)) return { changed: false, cost: 0 };
     const result = applyTool(map, tool, x, y, funds);
     if (result.changed) {
       set((s) => ({ mapVersion: s.mapVersion + 1, funds: s.funds - result.cost }));
     }
+    return result;
   },
 
   selectTile: (x, y) => {

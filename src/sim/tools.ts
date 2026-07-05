@@ -65,7 +65,12 @@ function removeFacilityAt(map: CityMap, x: number, y: number): number {
   return refund;
 }
 
-function canPlaceFootprint(map: CityMap, x: number, y: number, size: number): boolean {
+export function facilityDefForTool(tool: ToolId) {
+  const type = FACILITY_TOOL_TYPE[tool];
+  return type ? FACILITY_DEFS[type] : undefined;
+}
+
+export function canPlaceFootprint(map: CityMap, x: number, y: number, size: number): boolean {
   if (x < 0 || y < 0 || x + size > map.width || y + size > map.height) return false;
   for (let dy = 0; dy < size; dy++) {
     for (let dx = 0; dx < size; dx++) {
