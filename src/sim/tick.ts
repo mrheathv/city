@@ -1,6 +1,8 @@
 import { CityMap } from './grid';
 import { updatePowerGrid } from './power';
 import { updateWaterGrid } from './water';
+import { computeServiceCoverage } from './services';
+import { computePollution, computeCrimeAndFireRisk } from './environment';
 import { computeLandValue, averageLandValue } from './landvalue';
 import { computeCityTotals, computeRCIDemand, type TaxRates, type RCIDemand } from './rci';
 import { applyGrowth } from './growth';
@@ -25,7 +27,11 @@ export interface TickResult {
 export function runSimTick(map: CityMap, input: TickInput): TickResult {
   updatePowerGrid(map);
   updateWaterGrid(map);
-  computeLandValue(map);
+
+  const coverage = computeServiceCoverage(map);
+  computePollution(map);
+  computeCrimeAndFireRisk(map, coverage);
+  computeLandValue(map, coverage);
   const avgLandValue = averageLandValue(map);
 
   const totals = computeCityTotals(map);

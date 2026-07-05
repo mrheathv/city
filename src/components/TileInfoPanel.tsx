@@ -61,6 +61,15 @@ export function TileInfoPanel() {
 
         <dt className="text-white/50">Land value</dt>
         <dd>{Math.round((info.landValue / 255) * 100)}</dd>
+
+        <dt className="text-white/50">Pollution</dt>
+        <dd>{Math.round((info.pollution / 255) * 100)}</dd>
+
+        <dt className="text-white/50">Crime</dt>
+        <dd>{Math.round((info.crime / 255) * 100)}</dd>
+
+        <dt className="text-white/50">Fire risk</dt>
+        <dd>{Math.round((info.fireRisk / 255) * 100)}</dd>
       </dl>
     </div>
   );

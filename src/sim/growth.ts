@@ -58,6 +58,12 @@ export function applyGrowth(map: CityMap, demand: RCIDemand): GrowthResult {
     const units = LEVEL_UNITS[zone];
     const level = map.developmentLevel[i];
 
+    // Land value nudges growth/decay chances but never fully gates them —
+    // a rough neighborhood can still fill in slowly under strong demand,
+    // and a nice one can still lose buildings under strong negative demand.
+    const landValueFactor = 0.5 + 0.5 * (map.landValue[i] / 255); // 0.5..1
+    const declineFactor = 1.5 - landValueFactor; // 1..0.5, inverse
+
     if (!serviced) {
       if (level > 0 && Math.random() < 0.05) {
         map.developmentLevel[i] = Math.max(0, level - 1);
@@ -65,17 +71,17 @@ export function applyGrowth(map: CityMap, demand: RCIDemand): GrowthResult {
         result.abandoned++;
       }
     } else if (level === 0) {
-      if (demandValue > 0 && Math.random() < demandValue / 400) {
+      if (demandValue > 0 && Math.random() < (demandValue / 400) * landValueFactor) {
         map.developmentLevel[i] = 1;
         map.abandoned[i] = 0;
         result.developed++;
       }
     } else {
-      if (demandValue > 10 && level < units.maxLevel && Math.random() < demandValue / 600) {
+      if (demandValue > 10 && level < units.maxLevel && Math.random() < (demandValue / 600) * landValueFactor) {
         map.developmentLevel[i] = level + 1;
         map.abandoned[i] = 0;
         result.developed++;
-      } else if (demandValue < -10 && Math.random() < -demandValue / 500) {
+      } else if (demandValue < -10 && Math.random() < (-demandValue / 500) * declineFactor) {
         map.developmentLevel[i] = Math.max(0, level - 1);
         if (map.developmentLevel[i] === 0) result.demolished++;
         result.abandoned++;
