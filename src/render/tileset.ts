@@ -1,5 +1,5 @@
 import { CityMap } from '../sim/grid';
-import { NetworkFlag, Terrain, ZoneType, zoneCategory, type Facility } from '../sim/types';
+import { NetworkFlag, Terrain, ZoneType, type Facility } from '../sim/types';
 import { FACILITY_DEFS } from '../sim/facilities';
 
 export type ViewMode = 'surface' | 'underground' | 'traffic';
@@ -285,48 +285,317 @@ export class PlaceholderTileset implements Tileset {
     }
   }
 
+  /** Lightens (amt > 0) or darkens (amt < 0) a "#rrggbb" color; amt is roughly -1..1. */
+  private shade(hex: string, amt: number): string {
+    const num = parseInt(hex.replace('#', ''), 16);
+    const r = (num >> 16) & 0xff;
+    const g = (num >> 8) & 0xff;
+    const b = num & 0xff;
+    const adj = (c: number) => {
+      const t = amt >= 0 ? 255 - c : c;
+      return Math.max(0, Math.min(255, Math.round(c + t * amt)));
+    };
+    return `rgb(${adj(r)},${adj(g)},${adj(b)})`;
+  }
+
   private drawZone(
     ctx: CanvasRenderingContext2D,
     map: CityMap,
-    _x: number,
-    _y: number,
+    x: number,
+    y: number,
     i: number,
     sx: number,
     sy: number,
     size: number,
     zone: ZoneType,
   ) {
-    const colors = ZONE_COLORS[zone];
     const level = map.developmentLevel[i];
     const abandoned = map.abandoned[i] === 1;
 
     if (level === 0) {
-      // undeveloped zoned lot: translucent tint + dashed border
+      // undeveloped zoned lot: translucent tint + dashed border, reading as a planned lot
+      const colors = ZONE_COLORS[zone];
       ctx.fillStyle = colors.base + '99';
       ctx.fillRect(sx + 1, sy + 1, size - 2, size - 2);
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.lineWidth = Math.max(1, size * 0.03);
+      ctx.setLineDash([size * 0.1, size * 0.08]);
+      ctx.strokeRect(sx + size * 0.08, sy + size * 0.08, size * 0.84, size * 0.84);
+      ctx.setLineDash([]);
       return;
     }
 
-    const cat = zoneCategory(zone);
-    const height = Math.min(size * 0.85, size * 0.25 * (level + 1));
-    const bw = size * 0.7;
-    const bx = sx + (size - bw) / 2;
-    const by = sy + size - height - size * 0.08;
+    const seed = hashRand(x, y, 11);
 
-    ctx.fillStyle = abandoned ? '#3a3a3a' : colors.dev;
-    ctx.fillRect(bx, by, bw, height);
+    // Soft drop shadow first, so every building silhouette reads as
+    // slightly raised off the ground regardless of its shape.
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath();
+    ctx.ellipse(sx + size * 0.52, sy + size * 0.84, size * 0.32, size * 0.08, 0, 0, Math.PI * 2);
+    ctx.fill();
 
-    // windows
-    ctx.fillStyle = abandoned ? '#222' : cat === 'industrial' ? '#2a2a2a' : '#fef08a';
-    const rows = Math.max(1, Math.floor(height / (size * 0.16)));
+    switch (zone) {
+      case ZoneType.ResidentialLow:
+        this.drawHouse(ctx, sx, sy, size, level, abandoned, seed);
+        break;
+      case ZoneType.ResidentialHigh:
+        this.drawApartmentTower(ctx, sx, sy, size, level, abandoned, seed);
+        break;
+      case ZoneType.CommercialLow:
+        this.drawStorefront(ctx, sx, sy, size, level, abandoned, seed);
+        break;
+      case ZoneType.CommercialHigh:
+        this.drawOfficeTower(ctx, sx, sy, size, level, abandoned, seed);
+        break;
+      case ZoneType.IndustrialLight:
+        this.drawWarehouse(ctx, sx, sy, size, level, abandoned, seed);
+        break;
+      case ZoneType.IndustrialHeavy:
+        this.drawFactory(ctx, sx, sy, size, level, abandoned, seed);
+        break;
+    }
+  }
+
+  private drawHouse(ctx: CanvasRenderingContext2D, sx: number, sy: number, size: number, level: number, abandoned: boolean, seed: number) {
+    const wall = abandoned ? '#5c5850' : this.shade(seed > 0.5 ? '#d9c9a3' : '#dfd0b8', (seed - 0.5) * 0.2);
+    const roof = abandoned ? '#3a362f' : seed > 0.5 ? '#8a3f32' : '#4f5f6e';
+
+    const bw = size * (level >= 2 ? 0.58 : 0.46);
+    const bh = size * (level >= 2 ? 0.32 : 0.26);
+    const bx = sx + size / 2 - bw / 2;
+    const by = sy + size * 0.62 - bh / 2;
+    const roofH = size * 0.2;
+
+    if (level >= 2) {
+      // small side extension, drawn first so the main house overlaps it
+      ctx.fillStyle = this.shade(wall, -0.08);
+      ctx.fillRect(bx + bw - size * 0.04, by + bh * 0.3, size * 0.2, bh * 0.7);
+    }
+
+    ctx.fillStyle = wall;
+    ctx.fillRect(bx, by, bw, bh);
+
+    ctx.fillStyle = roof;
+    ctx.beginPath();
+    ctx.moveTo(bx - size * 0.05, by);
+    ctx.lineTo(bx + bw / 2, by - roofH);
+    ctx.lineTo(bx + bw + size * 0.05, by);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = abandoned ? '#1c1a17' : '#4a3626';
+    const doorW = size * 0.09;
+    const doorH = size * 0.13;
+    ctx.fillRect(bx + bw * 0.5 - doorW / 2, by + bh - doorH, doorW, doorH);
+
+    ctx.fillStyle = abandoned ? '#161616' : '#fde68a';
+    const win = size * 0.07;
+    ctx.fillRect(bx + bw * 0.16, by + bh * 0.32, win, win);
+    ctx.fillRect(bx + bw * 0.84 - win, by + bh * 0.32, win, win);
+  }
+
+  private drawApartmentTower(
+    ctx: CanvasRenderingContext2D,
+    sx: number,
+    sy: number,
+    size: number,
+    level: number,
+    abandoned: boolean,
+    seed: number,
+  ) {
+    const wall = abandoned ? '#48473f' : this.shade(seed > 0.5 ? '#c9ad82' : '#b3aa98', (seed - 0.5) * 0.15);
+    const floors = level + 1;
+    const bw = size * 0.56;
+    const bh = size * (0.3 + level * 0.17);
+    const bx = sx + size / 2 - bw / 2;
+    const by = sy + size * 0.88 - bh;
+
+    ctx.fillStyle = wall;
+    ctx.fillRect(bx, by, bw, bh);
+
+    ctx.fillStyle = this.shade(wall, -0.3);
+    ctx.fillRect(bx - size * 0.02, by - size * 0.035, bw + size * 0.04, size * 0.045);
+
     const cols = 3;
-    for (let r = 0; r < rows; r++) {
+    const rowH = bh / floors;
+    const winW = bw * 0.16;
+    const winH = rowH * 0.5;
+    ctx.fillStyle = abandoned ? '#151515' : '#a9d3e8';
+    for (let r = 0; r < floors; r++) {
       for (let c = 0; c < cols; c++) {
-        const wx = bx + bw * (0.15 + c * 0.3);
-        const wy = by + size * 0.08 + r * size * 0.16;
-        if (wy < by + height - size * 0.05) {
-          ctx.fillRect(wx, wy, size * 0.08, size * 0.08);
-        }
+        const wx = bx + bw * (0.15 + c * 0.32);
+        const wy = by + rowH * r + rowH * 0.28;
+        ctx.fillRect(wx, wy, winW, winH);
+      }
+    }
+
+    if (level >= 3) {
+      ctx.fillStyle = this.shade(wall, -0.15);
+      ctx.fillRect(bx + bw * 0.6, by - size * 0.12, size * 0.14, size * 0.1);
+    }
+  }
+
+  private drawStorefront(
+    ctx: CanvasRenderingContext2D,
+    sx: number,
+    sy: number,
+    size: number,
+    level: number,
+    abandoned: boolean,
+    seed: number,
+  ) {
+    const wall = abandoned ? '#454545' : this.shade('#8a8478', (seed - 0.5) * 0.15);
+    const bw = size * (level >= 2 ? 0.72 : 0.6);
+    const bh = size * (level >= 2 ? 0.34 : 0.24);
+    const bx = sx + size / 2 - bw / 2;
+    const by = sy + size * 0.86 - bh;
+
+    ctx.fillStyle = wall;
+    ctx.fillRect(bx, by, bw, bh);
+
+    ctx.fillStyle = abandoned ? '#333' : seed > 0.5 ? '#b3413f' : '#2f6ba3';
+    ctx.fillRect(bx - size * 0.02, by + bh * 0.15, bw + size * 0.04, size * 0.05);
+
+    ctx.fillStyle = abandoned ? '#1a1a1a' : '#bfe3f5';
+    ctx.fillRect(bx + size * 0.03, by + bh * 0.35, bw - size * 0.06, bh * 0.5);
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+    ctx.lineWidth = Math.max(1, size * 0.015);
+    const panes = 4;
+    for (let p = 1; p < panes; p++) {
+      const px = bx + size * 0.03 + ((bw - size * 0.06) * p) / panes;
+      ctx.beginPath();
+      ctx.moveTo(px, by + bh * 0.35);
+      ctx.lineTo(px, by + bh * 0.85);
+      ctx.stroke();
+    }
+
+    if (level >= 2) {
+      ctx.fillStyle = abandoned ? '#151515' : '#fde68a';
+      ctx.fillRect(bx + bw * 0.2, by + bh * 0.05, bw * 0.15, bh * 0.12);
+      ctx.fillRect(bx + bw * 0.65, by + bh * 0.05, bw * 0.15, bh * 0.12);
+    }
+  }
+
+  private drawOfficeTower(
+    ctx: CanvasRenderingContext2D,
+    sx: number,
+    sy: number,
+    size: number,
+    level: number,
+    abandoned: boolean,
+    seed: number,
+  ) {
+    const glass = abandoned ? '#333' : this.shade('#2f6ba3', (seed - 0.5) * 0.2);
+    const bw = size * 0.5;
+    const bh = size * (0.34 + level * 0.19);
+    const bx = sx + size / 2 - bw / 2;
+    const by = sy + size * 0.9 - bh;
+
+    ctx.fillStyle = abandoned ? '#3a3a3a' : '#dfe6ea';
+    ctx.fillRect(bx - size * 0.02, by, bw + size * 0.04, bh);
+
+    ctx.fillStyle = glass;
+    ctx.fillRect(bx, by + size * 0.02, bw, bh - size * 0.02);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = Math.max(1, size * 0.012);
+    const cols = 3;
+    for (let c = 1; c < cols; c++) {
+      const cxLine = bx + (bw * c) / cols;
+      ctx.beginPath();
+      ctx.moveTo(cxLine, by);
+      ctx.lineTo(cxLine, by + bh);
+      ctx.stroke();
+    }
+    const rows = Math.max(2, level + 1);
+    for (let r = 1; r < rows; r++) {
+      const cyLine = by + (bh * r) / rows;
+      ctx.beginPath();
+      ctx.moveTo(bx, cyLine);
+      ctx.lineTo(bx + bw, cyLine);
+      ctx.stroke();
+    }
+
+    if (level >= 3) {
+      ctx.strokeStyle = abandoned ? '#555' : '#ccc';
+      ctx.lineWidth = Math.max(1, size * 0.02);
+      ctx.beginPath();
+      ctx.moveTo(bx + bw / 2, by);
+      ctx.lineTo(bx + bw / 2, by - size * 0.14);
+      ctx.stroke();
+    }
+  }
+
+  private drawWarehouse(
+    ctx: CanvasRenderingContext2D,
+    sx: number,
+    sy: number,
+    size: number,
+    level: number,
+    abandoned: boolean,
+    seed: number,
+  ) {
+    const wall = abandoned ? '#3c3a34' : this.shade('#9a8f6e', (seed - 0.5) * 0.15);
+    const bw = size * 0.78;
+    const bh = size * (level >= 2 ? 0.36 : 0.26);
+    const bx = sx + size / 2 - bw / 2;
+    const by = sy + size * 0.88 - bh;
+
+    ctx.fillStyle = wall;
+    ctx.fillRect(bx, by, bw, bh);
+
+    ctx.fillStyle = this.shade(wall, -0.2);
+    ctx.fillRect(bx - size * 0.02, by - size * 0.03, bw + size * 0.04, size * 0.05);
+
+    ctx.fillStyle = abandoned ? '#161616' : '#333';
+    const dockW = bw * 0.18;
+    ctx.fillRect(bx + bw * 0.15, by + bh - bh * 0.55, dockW, bh * 0.5);
+    if (level >= 2) ctx.fillRect(bx + bw * 0.65, by + bh - bh * 0.55, dockW, bh * 0.5);
+
+    ctx.fillStyle = abandoned ? '#111' : '#cfe0e8';
+    for (let c = 0; c < 3; c++) {
+      ctx.fillRect(bx + bw * (0.1 + c * 0.3), by + bh * 0.12, size * 0.05, size * 0.05);
+    }
+  }
+
+  private drawFactory(
+    ctx: CanvasRenderingContext2D,
+    sx: number,
+    sy: number,
+    size: number,
+    level: number,
+    abandoned: boolean,
+    seed: number,
+  ) {
+    const wall = abandoned ? '#3a3833' : this.shade('#8f7a4a', (seed - 0.5) * 0.15);
+    const bw = size * 0.8;
+    const bh = size * (0.3 + level * 0.14);
+    const bx = sx + size / 2 - bw / 2;
+    const by = sy + size * 0.9 - bh;
+
+    ctx.fillStyle = wall;
+    ctx.fillRect(bx, by, bw, bh);
+
+    ctx.fillStyle = this.shade(wall, -0.12);
+    const stripeW = size * 0.05;
+    for (let sxi = bx; sxi < bx + bw; sxi += stripeW * 2) {
+      ctx.fillRect(sxi, by, stripeW, bh);
+    }
+
+    ctx.fillStyle = abandoned ? '#222' : '#c99a2e';
+    ctx.fillRect(bx, by + bh - size * 0.04, bw, size * 0.04);
+
+    const stacks = level >= 3 ? 2 : 1;
+    for (let s = 0; s < stacks; s++) {
+      const scx = bx + bw * (stacks === 1 ? 0.5 : s === 0 ? 0.3 : 0.7);
+      ctx.fillStyle = abandoned ? '#333' : '#5c5648';
+      ctx.fillRect(scx - size * 0.04, by - size * 0.22, size * 0.08, size * 0.22);
+      if (!abandoned && level >= 2) {
+        ctx.fillStyle = 'rgba(180,180,180,0.5)';
+        ctx.beginPath();
+        ctx.arc(scx, by - size * 0.28, size * 0.06, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
   }
@@ -476,22 +745,143 @@ export class PlaceholderTileset implements Tileset {
     ctx.lineWidth = 2;
     ctx.strokeRect(sx + 2, sy + 2, w - 4, h - 4);
 
+    // Vector-drawn icons rather than emoji glyphs: emoji rendering depends on
+    // the host having emoji fonts installed, which isn't guaranteed across
+    // every browser/OS this canvas might render on — a drawn shape always
+    // looks the same everywhere and stays crisp at small tile sizes.
+    const cx = sx + w / 2;
+    const cy = sy + h / 2;
+    const s = Math.min(w, h);
     ctx.fillStyle = '#fff';
-    ctx.font = `${Math.round(h * 0.4)}px system-ui`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    const icons: Record<string, string> = {
-      power_coal: '⚡',
-      power_solar: '☀',
-      water_pump: '💧',
-      water_tower: '💧',
-      police: '★',
-      fire: '🔥',
-      hospital: '+',
-      school: '🎓',
-      park: '🌳',
-    };
-    ctx.fillText(icons[type] ?? '?', sx + w / 2, sy + h / 2);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = Math.max(1, s * 0.04);
+
+    switch (type) {
+      case 'power_coal':
+        this.drawBoltIcon(ctx, cx, cy, s);
+        break;
+      case 'power_solar':
+        this.drawSolarIcon(ctx, cx, cy, s);
+        break;
+      case 'water_pump':
+      case 'water_tower':
+        this.drawDropletIcon(ctx, cx, cy, s);
+        break;
+      case 'police':
+        this.drawStarIcon(ctx, cx, cy, s);
+        break;
+      case 'fire':
+        this.drawFlameIcon(ctx, cx, cy, s);
+        break;
+      case 'hospital':
+        this.drawCrossIcon(ctx, cx, cy, s);
+        break;
+      case 'school':
+        this.drawCapIcon(ctx, cx, cy, s);
+        break;
+      case 'park':
+        this.drawTreeIcon(ctx, cx, cy, s);
+        break;
+    }
+  }
+
+  private drawBoltIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number) {
+    ctx.beginPath();
+    ctx.moveTo(cx + s * 0.06, cy - s * 0.22);
+    ctx.lineTo(cx - s * 0.08, cy + s * 0.02);
+    ctx.lineTo(cx + s * 0.02, cy + s * 0.02);
+    ctx.lineTo(cx - s * 0.06, cy + s * 0.22);
+    ctx.lineTo(cx + s * 0.1, cy - s * 0.04);
+    ctx.lineTo(cx, cy - s * 0.04);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  private drawSolarIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number) {
+    const gw = s * 0.36;
+    const gh = s * 0.26;
+    ctx.strokeRect(cx - gw / 2, cy - gh / 2, gw, gh);
+    for (let i = 1; i < 3; i++) {
+      const x = cx - gw / 2 + (gw * i) / 3;
+      ctx.beginPath();
+      ctx.moveTo(x, cy - gh / 2);
+      ctx.lineTo(x, cy + gh / 2);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(cx - gw / 2, cy);
+    ctx.lineTo(cx + gw / 2, cy);
+    ctx.stroke();
+  }
+
+  private drawDropletIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number) {
+    const r = s * 0.16;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - s * 0.26);
+    ctx.quadraticCurveTo(cx + r * 1.3, cy + r * 0.4, cx, cy + r * 1.1);
+    ctx.quadraticCurveTo(cx - r * 1.3, cy + r * 0.4, cx, cy - s * 0.26);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  private drawStarIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number) {
+    const spikes = 5;
+    const outerR = s * 0.24;
+    const innerR = s * 0.1;
+    ctx.beginPath();
+    for (let i = 0; i < spikes * 2; i++) {
+      const r = i % 2 === 0 ? outerR : innerR;
+      const angle = (Math.PI / spikes) * i - Math.PI / 2;
+      const px = cx + Math.cos(angle) * r;
+      const py = cy + Math.sin(angle) * r;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  private drawFlameIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number) {
+    ctx.fillStyle = '#ffdd66';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - s * 0.26);
+    ctx.quadraticCurveTo(cx + s * 0.2, cy - s * 0.02, cx + s * 0.08, cy + s * 0.14);
+    ctx.quadraticCurveTo(cx + s * 0.14, cy + s * 0.22, cx, cy + s * 0.26);
+    ctx.quadraticCurveTo(cx - s * 0.14, cy + s * 0.22, cx - s * 0.08, cy + s * 0.14);
+    ctx.quadraticCurveTo(cx - s * 0.2, cy - s * 0.02, cx, cy - s * 0.26);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  private drawCrossIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number) {
+    const armW = s * 0.12;
+    const armL = s * 0.34;
+    ctx.fillRect(cx - armW / 2, cy - armL / 2, armW, armL);
+    ctx.fillRect(cx - armL / 2, cy - armW / 2, armL, armW);
+  }
+
+  private drawCapIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number) {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - s * 0.16);
+    ctx.lineTo(cx + s * 0.24, cy - s * 0.02);
+    ctx.lineTo(cx, cy + s * 0.12);
+    ctx.lineTo(cx - s * 0.24, cy - s * 0.02);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillRect(cx - s * 0.08, cy + s * 0.06, s * 0.16, s * 0.1);
+    ctx.beginPath();
+    ctx.moveTo(cx + s * 0.16, cy - s * 0.02);
+    ctx.lineTo(cx + s * 0.2, cy + s * 0.14);
+    ctx.stroke();
+  }
+
+  private drawTreeIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: number) {
+    ctx.fillStyle = '#6fbf73';
+    ctx.beginPath();
+    ctx.arc(cx, cy - s * 0.04, s * 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#4a3323';
+    ctx.fillRect(cx - s * 0.03, cy + s * 0.1, s * 0.06, s * 0.14);
   }
 
   drawFacilityOverlay(
