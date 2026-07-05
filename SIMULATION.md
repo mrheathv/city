@@ -270,6 +270,18 @@ goal in the brief and isn't implemented.
 average) rather than blocking growth outright — this avoids a hard failure
 mode where a single disconnected house breaks the whole demand calculation.
 
+### Traffic particles (`src/render/trafficParticles.ts`)
+
+The moving "cars" on the road are a purely cosmetic rendering layer, not
+part of the simulation — no trip data is tracked or persisted, and nothing
+here feeds back into `map.traffic` or any other sim state (it only *reads*
+`map.traffic` and `map.networks`). Cars spawn on road tiles at a rate
+proportional to that tile's existing congestion value, move slower on
+congested tiles, and pick a random connected road direction (preferring to
+continue straight) whenever they cross into a new tile. They're hidden in
+the underground/traffic views, since neither is meant to represent the
+surface-level street view.
+
 ## Budget (`src/sim/budget.ts`, `src/sim/bonds.ts`)
 
 Computed daily (one simulated day per tick):

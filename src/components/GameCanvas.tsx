@@ -2,10 +2,12 @@ import { useEffect, useRef } from 'react';
 import { useGameStore } from '../state/store';
 import { renderFrame, type FootprintOverlay } from '../render/renderer';
 import { PlaceholderTileset } from '../render/tileset';
-import { clampCameraToMap, screenToWorld, worldToTile, zoomAt, type Camera } from '../render/camera';
+import { clampCameraToMap, screenToWorld, visibleTileRange, worldToTile, zoomAt, type Camera } from '../render/camera';
 import { canPlaceFootprint, facilityDefForTool } from '../sim/tools';
+import { TrafficParticleSystem } from '../render/trafficParticles';
 
 const REJECT_FLASH_MS = 500;
+const MAX_FRAME_DT = 0.1; // seconds; clamp so a backgrounded tab doesn't cause cars to leap on return
 
 const TICK_INTERVAL_MS: Record<number, number> = { 1: 1000, 2: 400, 3: 150 };
 const TAP_MOVE_THRESHOLD = 8;
@@ -16,6 +18,8 @@ export function GameCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const sizeRef = useRef({ w: 0, h: 0, dpr: 1 });
   const tilesetRef = useRef(new PlaceholderTileset());
+  const trafficParticlesRef = useRef(new TrafficParticleSystem());
+  const lastFrameTimeRef = useRef(0);
 
   const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const gestureRef = useRef<{ prevDist: number; prevMid: { x: number; y: number } } | null>(null);
@@ -70,6 +74,15 @@ export function GameCanvas() {
         footprintPreview,
         rejectedFootprint: rejectFlashRef.current,
       });
+
+      const lastFrameTime = lastFrameTimeRef.current;
+      const dt = lastFrameTime ? Math.min(MAX_FRAME_DT, (time - lastFrameTime) / 1000) : 0;
+      lastFrameTimeRef.current = time;
+      if (!state.paused && !state.undergroundView && !state.trafficView) {
+        const { minX, minY, maxX, maxY } = visibleTileRange(state.camera, w, h, state.map.width, state.map.height);
+        trafficParticlesRef.current.update(state.map, dt, minX, minY, maxX, maxY);
+        trafficParticlesRef.current.draw(ctx, state.camera, w, h);
+      }
 
       if (!state.paused) {
         const interval = TICK_INTERVAL_MS[state.speed] ?? 1000;
